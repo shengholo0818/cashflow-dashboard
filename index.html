@@ -11,145 +11,224 @@
     <meta name="apple-mobile-web-app-title" content="CashFlow">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
     
+    <!-- 引入核心套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入拖曳排序套件 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <style>
+        /* 螢幕顯示專用 */
+        @media screen {
+            .print-only { display: none !important; }
+        }
+        /* 列印 PDF 專用完美排版 */
         @media print {
             .no-print { display: none !important; }
-            body { background: white; }
-            #app { box-shadow: none; max-width: 100%; margin: 0; padding: 0; }
-            .print-border { border: 1px solid #000; padding: 10px; margin-bottom: 10px; }
+            body { background: white !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; margin: 0; padding: 0; }
+            #app { box-shadow: none !important; background: transparent !important; max-width: 100% !important; padding: 0 !important; }
+            .print-only { display: block !important; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f3f4f6; font-weight: bold; }
+            .pdf-header { font-size: 24px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .pdf-section-title { font-size: 16px; font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #333; }
         }
         .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: bold; }
-        .tab-inactive { color: #6b7280; font-weight: medium; }
+        .tab-inactive { color: #6b7280; font-weight: 500; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="datetime-local"] { -webkit-appearance: none; background-color: transparent; }
         input[type="color"] { -webkit-appearance: none; border: none; border-radius: 4px; padding: 0; overflow: hidden; cursor: pointer; }
         input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
     </style>
+
+    <script>
+        const manifest = {
+            name: "CashFlow", short_name: "CashFlow", start_url: ".", display: "standalone",
+            background_color: "#f9fafb", theme_color: "#3b82f6",
+            icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }]
+        };
+        document.write(`<link rel="manifest" href="${URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type: 'application/json'}))}">`);
+    </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans antialiased">
 
 <div id="app" class="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-xl overflow-x-hidden relative">
     
-    <!-- 頂部導覽列 -->
-    <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative no-print">
-        <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
-        </h1>
-        <button @click="dataModal.show = true" class="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-100 transition">
-            <i class="fa-solid fa-cloud-arrow-down mr-1"></i> 備份/匯出
-        </button>
+    <!-- ==================== PDF 隱藏列印區 ==================== -->
+    <div class="print-only p-8">
+        <div class="pdf-header">CashFlow 財務報表 ({{ currentYear }}年{{ currentMonth }}月)</div>
+        
+        <div v-if="pdfConfig.showSummary" class="mb-6">
+            <table>
+                <tr><th>總預估收入</th><th>總預估支出</th><th>預估負債比 (DTI)</th><th>目前可用現金</th></tr>
+                <tr>
+                    <td>$ {{ formatNumber(monthlyStats.expectedIncome) }}</td>
+                    <td>$ {{ formatNumber(monthlyStats.estimatedDue) }}</td>
+                    <td>{{ monthlyStats.dti.toFixed(1) }}%</td>
+                    <td style="font-weight: bold;">$ {{ formatNumber(monthlyStats.actualBalance) }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div v-if="pdfConfig.showIncome && ledgerIncomes.length > 0">
+            <div class="pdf-section-title">收入明細</div>
+            <table>
+                <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr>
+                <tr v-for="inc in ledgerIncomes"><td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td></tr>
+            </table>
+        </div>
+
+        <div v-if="pdfConfig.showExpense && ledgerOtherExpenses.length > 0">
+            <div class="pdf-section-title">生活支出與繳費</div>
+            <table>
+                <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr>
+                <tr v-for="exp in ledgerOtherExpenses"><td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳' : '未繳' }}</td></tr>
+            </table>
+        </div>
+
+        <div v-if="pdfConfig.showCards && ledgerCardBills.length > 0">
+            <div class="pdf-section-title">信用卡帳單</div>
+            <table>
+                <tr><th>信用卡名稱</th><th>當期總計</th><th>實際繳納</th><th>狀態</th></tr>
+                <tr v-for="bill in ledgerCardBills"><td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td></tr>
+            </table>
+        </div>
+
+        <div v-if="pdfConfig.showLoans && ledgerLoans.length > 0">
+            <div class="pdf-section-title">貸款攤還</div>
+            <table>
+                <tr><th>貸款名稱</th><th>期數</th><th>本金 / 利息</th><th>應繳總額</th><th>實際繳納</th></tr>
+                <tr v-for="loan in ledgerLoans"><td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td></tr>
+            </table>
+        </div>
     </div>
 
-    <!-- 三頁籤導覽 -->
-    <div class="flex bg-white border-b border-gray-200 no-print sticky top-0 z-40 shadow-sm">
-        <button @click="activeTab = 'ledger'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'">
-            <i class="fa-regular fa-calendar-check mr-1"></i> 記帳本
-        </button>
-        <button @click="activeTab = 'settings'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'">
-            <i class="fa-solid fa-sliders mr-1"></i> 設定與貸款
-        </button>
-        <button @click="switchTab('charts')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'charts' ? 'tab-active' : 'tab-inactive'">
-            <i class="fa-solid fa-chart-pie mr-1"></i> 報表
-        </button>
-    </div>
-
-    <!-- ==================== 頁籤 1：本月記帳本 ==================== -->
-    <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
-        
-        <div class="flex justify-between items-center bg-white rounded-full p-1 shadow-sm no-print">
-            <button @click="changeMonth(-1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-left"></i></button>
-            <div class="font-bold text-lg text-gray-800">{{ currentYear }} 年 {{ currentMonth }} 月</div>
-            <button @click="changeMonth(1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-right"></i></button>
+    <!-- ==================== 手機 UI 介面 ==================== -->
+    <div class="no-print">
+        <!-- 頂部導覽列 -->
+        <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative">
+            <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
+            </h1>
+            <button @click="dataModal.show = true" class="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-100 transition">
+                <i class="fa-solid fa-cloud-arrow-down mr-1"></i> 備份/匯出
+            </button>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white print-border">
-            <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣除現金支出)</div>
-            <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-3 print-border">
-            <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 border-gray-300">
-                <div class="text-[11px] text-gray-500 mb-1">未繳帳單/待付支出</div>
-                <div class="text-lg font-bold text-gray-700">$ {{ formatNumber(monthlyStats.estimatedDue) }}</div>
-            </div>
-            <div class="bg-blue-50 p-3 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
-                <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
-            </div>
-            <!-- 🌟 重新加回：預估負債比 -->
-            <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center print-border"
-                 :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
-                <div class="text-[11px] text-gray-500">預估財務健康度 (總支出 ÷ 總收入)</div>
-                <div class="flex items-center gap-2">
-                    <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
-                        {{ monthlyStats.dti.toFixed(1) }}%
-                    </span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
-                        {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
-                    </span>
-                </div>
-            </div>
+        <!-- 頁籤導覽 -->
+        <div class="flex bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+            <button @click="activeTab = 'ledger'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
+            <button @click="activeTab = 'settings'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
+            <button @click="switchTab('charts')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'charts' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-chart-pie mr-1"></i> 報表</button>
         </div>
 
-        <!-- 1. 本月收入 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 print-border border-t-4 border-green-500">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">1. 本月收入</h2>
-                <button @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 單筆收入</button>
-            </div>
-            <div v-if="ledgerIncomes.length === 0" class="text-center text-xs text-gray-400 py-2">無收入設定</div>
+        <!-- ==================== 頁籤 1：本月記帳本 ==================== -->
+        <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
-            <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30 relative">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
-                            {{ inc.name }}
-                            <span v-if="inc.type==='fixed'" class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded">常態</span>
-                            <span v-if="inc.type==='adhoc'" class="text-[9px] bg-orange-100 text-orange-600 px-1 rounded">單筆</span>
-                        </div>
-                        <div class="text-[11px] text-gray-500 mt-1">預估: <span class="font-bold text-gray-700">$ {{ formatNumber(inc.expectedAmount) }}</span></div>
-                    </div>
+            <!-- 🌟 年月切換器 (點擊開啟選單) -->
+            <div class="flex justify-between items-center bg-white rounded-full p-1 shadow-sm">
+                <button @click="changeMonth(-1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-left"></i></button>
+                <div @click="monthPicker.show = true" class="font-bold text-lg text-gray-800 cursor-pointer hover:bg-gray-100 px-4 py-1 rounded-full transition flex items-center gap-2">
+                    {{ currentYear }} 年 {{ currentMonth }} 月 <i class="fa-solid fa-caret-down text-sm text-gray-400"></i>
+                </div>
+                <button @click="changeMonth(1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+
+            <!-- 歷史快照警示 -->
+            <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
+                <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
+                <div>
+                    <span class="font-bold">歷史時空鎖定模式</span><br>
+                    您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處的資料。
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
+                <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣除現金支出)</div>
+                <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 border-gray-300">
+                    <div class="text-[11px] text-gray-500 mb-1">未繳帳單/待付支出</div>
+                    <div class="text-lg font-bold text-gray-700">$ {{ formatNumber(monthlyStats.estimatedDue) }}</div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-xl shadow-sm border-l-4 border-blue-500">
+                    <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
+                    <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
+                </div>
+                <!-- 預估財務健康度 -->
+                <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
+                    <div class="text-[11px] text-gray-500">預估財務健康度 (總支出 ÷ 總收入)</div>
                     <div class="flex items-center gap-2">
-                        <div v-if="inc.isReceived" class="text-right text-sm font-bold text-green-600">$ {{ formatNumber(inc.actualAmount) }}</div>
-                        <button v-if="!inc.isReceived" @click="openRecordModal('income', inc)" class="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200">入帳</button>
-                        <button v-if="inc.type === 'adhoc' && !inc.isReceived" @click="deleteAdhocIncome(inc.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
-                        <button v-if="inc.isReceived" @click="cancelRecord('income', inc.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
+                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
+                            {{ monthlyStats.dti.toFixed(1) }}%
+                        </span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
+                            {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
+                        </span>
                     </div>
                 </div>
+            </div>
+
+            <!-- 1. 本月收入 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">1. 本月收入</h2>
+                    <button v-if="!isHistoricalView" @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 單筆收入</button>
+                </div>
+                <div v-if="ledgerIncomes.length === 0" class="text-center text-xs text-gray-400 py-2">無收入紀錄</div>
                 
-                <!-- 針對常態薪資顯示出勤與明細 -->
-                <div v-if="inc.type === 'fixed' && incomeDrafts[getDraftKey(inc)] && !inc.isReceived" class="mt-2 bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
-                    <button @click="incomeDrafts[getDraftKey(inc)].showDetails = !incomeDrafts[getDraftKey(inc)].showDetails" class="w-full text-center text-[11px] py-1.5 text-blue-600 bg-gray-50 border-t border-gray-100">
-                        {{ incomeDrafts[getDraftKey(inc)].showDetails ? '隱藏明細 ▲' : '編輯加減項與出勤 ▼' }}
-                    </button>
-                    <div v-if="incomeDrafts[getDraftKey(inc)].showDetails" class="p-2 space-y-2">
-                        <div class="flex items-center justify-between bg-yellow-50 p-1.5 rounded">
-                            <span class="text-xs font-bold text-yellow-700">出勤天數：</span>
-                            <div class="flex items-center gap-1">
-                                <input type="number" v-model.number="incomeDrafts[getDraftKey(inc)].workingDays" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold outline-none">天
+                <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
+                                <span class="truncate">{{ inc.name }}</span>
+                                <span v-if="inc.type==='fixed'" class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded shrink-0">常態</span>
+                                <span v-if="inc.type==='adhoc'" class="text-[9px] bg-orange-100 text-orange-600 px-1 rounded shrink-0">單筆</span>
                             </div>
+                            <div class="text-[11px] text-gray-500 mt-1">預估: <span class="font-bold text-gray-700">$ {{ formatNumber(inc.expectedAmount) }}</span></div>
                         </div>
-                        <div class="text-[11px]">
-                            <div class="flex justify-between text-gray-500"><span>本薪</span><span>$ {{ formatNumber(inc.baseSalary) }}</span></div>
-                            <div v-for="a in (inc.fixedAllowances||[])" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
-                            <div v-for="d in (inc.fixedDeductions||[])" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div v-if="inc.isReceived" class="text-right text-sm font-bold text-green-600">$ {{ formatNumber(inc.actualAmount) }}</div>
+                            <button v-if="!inc.isReceived" @click="openRecordModal('income', inc)" class="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200">入帳</button>
+                            <button v-if="inc.type === 'adhoc' && !inc.isReceived" @click="deleteRecord('income_adhoc', inc.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
+                            <button v-if="inc.isReceived" @click="cancelRecord('income', inc.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
                         </div>
-                        <div class="border-t pt-2">
-                            <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded">+新增</button></div>
-                            <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" class="flex gap-1 mb-1 items-center">
-                                <input v-model="ta.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="ta.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="incomeDrafts[getDraftKey(inc)].tempAllowances.splice(idx,1)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    
+                    <div v-if="inc.type === 'fixed' && incomeDrafts[getDraftKey(inc)] && !inc.isReceived && !isHistoricalView" class="mt-2 bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
+                        <button @click="incomeDrafts[getDraftKey(inc)].showDetails = !incomeDrafts[getDraftKey(inc)].showDetails" class="w-full text-center text-[11px] py-1.5 text-blue-600 bg-gray-50 border-t border-gray-100">
+                            {{ incomeDrafts[getDraftKey(inc)].showDetails ? '隱藏明細 ▲' : '編輯加減項與出勤 ▼' }}
+                        </button>
+                        <div v-if="incomeDrafts[getDraftKey(inc)].showDetails" class="p-2 space-y-2">
+                            <div class="flex items-center justify-between bg-yellow-50 p-1.5 rounded">
+                                <span class="text-xs font-bold text-yellow-700">出勤天數：</span>
+                                <div class="flex items-center gap-1"><input type="number" v-model.number="incomeDrafts[getDraftKey(inc)].workingDays" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold outline-none">天</div>
                             </div>
-                            <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded">+新增</button></div>
-                            <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" class="flex gap-1 mb-1 items-center">
-                                <input v-model="td.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="td.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="incomeDrafts[getDraftKey(inc)].tempDeductions.splice(idx,1)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                            <div class="text-[11px]">
+                                <div class="flex justify-between text-gray-500"><span>本薪</span><span>$ {{ formatNumber(inc.baseSalary) }}</span></div>
+                                <div v-for="a in (inc.fixedAllowances||[])" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
+                                <div v-for="d in (inc.fixedDeductions||[])" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
+                            </div>
+                            <div class="border-t pt-2">
+                                <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded">+新增</button></div>
+                                <!-- 🌟 修正：使用 Vue 響應式賦值解決失效 -->
+                                <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" class="flex gap-1 mb-1 items-center">
+                                    <input v-model="ta.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="ta.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
+                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempAllowances, idx)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded">+新增</button></div>
+                                <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" class="flex gap-1 mb-1 items-center">
+                                    <input v-model="td.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="td.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
+                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempDeductions, idx)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -157,16 +236,16 @@
             </div>
         </div>
 
-        <!-- 2. 支出 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 print-border border-t-4 border-orange-400">
+        <!-- 2. 生活支出 -->
+        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
             <div class="flex justify-between items-center mb-3 border-b pb-2">
                 <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
-                <button @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded">+ 單筆繳費</button>
+                <button v-if="!isHistoricalView" @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded">+ 單筆繳費</button>
             </div>
             <div v-if="ledgerOtherExpenses.length === 0" class="text-center text-xs text-gray-400 py-2">無紀錄</div>
             <div v-for="exp in ledgerOtherExpenses" :key="exp.recordId" class="flex justify-between items-center mb-3 last:mb-0 p-2 rounded" :class="exp.isPaid ? 'bg-gray-50 opacity-70' : ''">
-                <div class="flex-1">
-                    <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+                <div class="flex-1 min-w-0 pr-2">
+                    <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
                         <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: exp.color }"></span> 
                         <span class="truncate">{{ exp.name }}</span>
                         <span v-if="exp.type==='fixed'" class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded shrink-0">固定</span>
@@ -180,34 +259,33 @@
                         <div class="text-[9px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded mt-0.5">{{ getPaymentMethodName(exp.paymentMethod) }}</div>
                     </div>
                     <button v-if="!exp.isPaid" @click="openRecordModal('other_expense', exp)" class="px-3 py-1 bg-orange-500 text-white rounded text-xs font-bold">繳費</button>
-                    <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteAdhocExpense(exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
+                    <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteRecord('expense_adhoc', exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
                     <button v-if="exp.isPaid" @click="cancelRecord('other_expense', exp.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
                 </div>
             </div>
         </div>
 
         <!-- 3. 卡費與貸款 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 print-border border-t-4 border-purple-500">
+        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
             <div class="flex justify-between items-center mb-3 border-b pb-2">
                 <h2 class="font-bold text-gray-700">3. 信用卡與貸款</h2>
-                <button @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">+ 記刷卡</button>
+                <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">+ 記刷卡</button>
             </div>
             
-            <div v-if="ledgerCardBills.length === 0 && ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">本月無待繳項目 🎉</div>
+            <div v-if="ledgerCardBills.length === 0 && ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">無待繳項目 🎉</div>
             
-            <!-- 卡費 -->
             <div v-for="bill in ledgerCardBills" :key="bill.id" class="mb-4 last:mb-0 border border-gray-200 rounded-lg overflow-hidden" :class="bill.isPaid ? 'opacity-70' : ''">
                 <div class="p-2.5 flex justify-between items-center" :class="bill.isPaid ? 'bg-gray-100' : 'bg-purple-50'">
-                    <div>
-                        <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5">
-                            <span class="w-3 h-3 rounded-full inline-block" :style="{ backgroundColor: bill.color }"></span>
-                            <i class="fa-regular fa-credit-card text-purple-600"></i> {{ bill.name }}
+                    <div class="flex-1 min-w-0 pr-2">
+                        <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
+                            <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: bill.color }"></span>
+                            <i class="fa-regular fa-credit-card text-purple-600 shrink-0"></i> <span class="truncate">{{ bill.name }}</span>
                         </div>
-                        <div class="text-[10px] text-gray-500 mt-0.5">當期總計: $ {{ formatNumber(bill.expectedAmount) }} <span class="block sm:inline">(出帳:{{bill.statementDate}}號/截止:{{bill.dueDate}}號)</span></div>
+                        <div class="text-[10px] text-gray-500 mt-0.5">當期總計: $ {{ formatNumber(bill.expectedAmount) }} <span class="block sm:inline">(結:{{bill.statementDate}}號/繳:{{bill.dueDate}}號)</span></div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 shrink-0">
                         <div v-if="bill.isPaid" class="text-right text-sm font-bold text-gray-600">已繳 $ {{ formatNumber(bill.actualAmount) }}</div>
-                        <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold shrink-0">付卡費</button>
+                        <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold">付卡費</button>
                         <button v-else @click="cancelRecord('card', bill.recordId)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
@@ -231,7 +309,7 @@
                                 </div>
                                 <div class="flex items-center gap-1">
                                     <span :class="txn.amount<0?'text-green-600 font-bold':''">$ {{ formatNumber(txn.amount) }}</span>
-                                    <button @click="deleteTransaction(txn.id)" class="text-gray-300 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                    <button v-if="!isHistoricalView && !bill.isPaid" @click="deleteRecord('txn', txn.id)" class="text-gray-300 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -239,12 +317,11 @@
                 </div>
             </div>
 
-            <!-- 貸款 -->
             <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
-                <div class="flex-1 pr-2">
-                    <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                <div class="flex-1 pr-2 min-w-0">
+                    <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
                         <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: loan.color }"></span>
-                        <i class="fa-solid fa-building-columns text-blue-600"></i> <span class="truncate">{{ loan.name }}</span>
+                        <i class="fa-solid fa-building-columns text-blue-600 shrink-0"></i> <span class="truncate">{{ loan.name }}</span>
                     </div>
                     <div class="text-[11px] text-gray-500 mt-1 leading-tight">
                         {{ loan.currentDate }} (第 {{ loan.currentPeriod }}/{{ loan.totalPeriods }} 期)<br>
@@ -264,174 +341,179 @@
     <!-- ==================== 頁籤 2：設定 & 貸款 ==================== -->
     <div v-show="activeTab === 'settings'" class="p-4 space-y-4 no-print">
         
-        <!-- 薪資設定 -->
         <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-400">
             <div class="flex justify-between items-center mb-2 border-b pb-2">
                 <h2 class="font-bold text-gray-700">收入與常態薪資</h2>
                 <button @click="addIncome" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 新增</button>
             </div>
-            <div v-for="(income, index) in incomes" :key="income.id" class="border rounded-lg p-2 mb-3 bg-gray-50">
-                <div class="flex items-center gap-2 mb-2 bg-white p-1 rounded">
-                    <input v-model="income.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none" placeholder="輸入薪資名稱">
-                    <button @click="removeIncome(index)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
-                </div>
-                <div class="text-xs text-gray-600 mb-2">固定本薪: <input type="number" v-model.number="income.baseSalary" class="border rounded px-1 w-24 outline-none"></div>
-                <button @click="income.showDetails = !income.showDetails" class="text-[11px] text-blue-600 w-full text-center border border-blue-100 bg-blue-50 py-1 rounded outline-none">
-                    {{ income.showDetails ? '隱藏常態加減項 ▲' : '設定常態加減項 ▼' }}
-                </button>
-                <div v-if="income.showDetails" class="mt-2 pt-2 border-t">
-                    <div class="text-[9px] text-gray-400 mb-1">💡 僅設定「每個月固定」發生的項目。</div>
-                    <div class="mb-2">
-                        <span class="text-[11px] font-bold text-blue-600 mr-2">常態加項</span><button @click="addIncomeSettingItem(income, 'fixedAllowances')" class="text-[9px] bg-blue-100 px-1 rounded">+ 新增</button>
-                        <div v-for="(al, idx) in income.fixedAllowances" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="al.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="al.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="al.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="income.fixedAllowances.splice(idx,1)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
+            <!-- 🌟 拖曳容器 -->
+            <div id="incomes-list" class="space-y-3">
+                <div v-for="(income, index) in incomes" :key="income.id" class="border rounded-lg p-2 bg-gray-50">
+                    <div class="flex items-center gap-2 mb-2 bg-white p-1 rounded">
+                        <i class="fa-solid fa-bars drag-handle cursor-move text-gray-400 ml-1"></i>
+                        <input v-model="income.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none" placeholder="輸入名稱">
+                        <button @click="deleteItemConfirm(incomes, index)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
-                    <div>
-                        <span class="text-[11px] font-bold text-red-600 mr-2">常態減項</span><button @click="addIncomeSettingItem(income, 'fixedDeductions')" class="text-[9px] bg-red-100 px-1 rounded">+ 新增</button>
-                        <div v-for="(de, idx) in income.fixedDeductions" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="de.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="de.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="de.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="income.fixedDeductions.splice(idx,1)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
+                    <div class="text-xs text-gray-600 mb-2 px-1">固定本薪: <input type="number" v-model.number="income.baseSalary" class="border rounded px-1 w-24 outline-none"></div>
+                    <button @click="income.showDetails = !income.showDetails" class="text-[11px] text-blue-600 w-full text-center border border-blue-100 bg-blue-50 py-1 rounded outline-none">
+                        {{ income.showDetails ? '隱藏常態加減項 ▲' : '設定常態加減項 ▼' }}
+                    </button>
+                    <div v-if="income.showDetails" class="mt-2 pt-2 border-t">
+                        <div class="mb-2">
+                            <span class="text-[11px] font-bold text-blue-600 mr-2">常態加項</span><button @click="addIncomeSettingItem(income, 'fixedAllowances')" class="text-[9px] bg-blue-100 px-1 rounded">+ 新增</button>
+                            <div v-for="(al, idx) in income.fixedAllowances" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="al.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="al.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="al.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedAllowances, idx)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
+                        </div>
+                        <div>
+                            <span class="text-[11px] font-bold text-red-600 mr-2">常態減項</span><button @click="addIncomeSettingItem(income, 'fixedDeductions')" class="text-[9px] bg-red-100 px-1 rounded">+ 新增</button>
+                            <div v-for="(de, idx) in income.fixedDeductions" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="de.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="de.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="de.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedDeductions, idx)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 固定支出 -->
         <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
-            <div class="flex justify-between items-center mb-2 border-b pb-2">
+            <div class="flex justify-between items-center mb-3 border-b pb-2">
                 <h2 class="font-bold text-gray-700">常態生活支出</h2>
                 <button @click="addFixedExpense" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded">+ 新增</button>
             </div>
-            <!-- 修復垃圾桶跑版：加入 bg-white p-1, min-w-0, shrink-0 -->
-            <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 mb-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded">
-                <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                <input v-model="exp.name" placeholder="名稱 (如:房租)" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
-                <input type="number" v-model.number="exp.amount" placeholder="$" class="w-20 shrink-0 border rounded px-2 py-1 text-sm text-right outline-none">
-                <button @click="fixedExpenses.splice(index, 1)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
+            <!-- 🌟 拖曳容器 -->
+            <div id="fixed-expenses-list" class="space-y-2">
+                <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded">
+                    <i class="fa-solid fa-bars drag-handle cursor-move text-gray-400 ml-1"></i>
+                    <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer">
+                    <input v-model="exp.name" placeholder="名稱" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
+                    <input type="number" v-model.number="exp.amount" placeholder="$" class="w-20 shrink-0 border rounded px-2 py-1 text-sm text-right outline-none">
+                    <button @click="deleteItemConfirm(fixedExpenses, index)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
+                </div>
             </div>
         </div>
 
-        <!-- 信用卡 -->
         <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-400">
             <div class="flex justify-between items-center mb-3 border-b pb-2">
                 <h2 class="font-bold text-gray-700">信用卡管理 (含自訂明細)</h2>
                 <button @click="addCard" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded">+ 新增卡片</button>
             </div>
-            <div v-for="(card, cardIdx) in cards" :key="card.id" class="border border-gray-200 rounded-lg p-2 mb-4 bg-gray-50 shadow-sm">
-                <!-- 修復排版防擠壓 -->
-                <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
-                    <input type="color" v-model="card.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                    <input v-model="card.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none text-purple-800" placeholder="卡片名稱">
-                    <button @click="removeCard(cardIdx)" class="text-red-400 text-xs p-1 shrink-0"><i class="fa-solid fa-trash"></i></button>
-                </div>
-                <div class="flex gap-2 text-[10px] text-gray-600 mb-3 bg-white p-1.5 rounded border border-gray-200">
-                    <div class="flex items-center gap-1 flex-1">出帳日:每<input type="number" v-model.number="card.statementDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
-                    <div class="flex items-center gap-1 flex-1">截止日:每<input type="number" v-model.number="card.dueDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
-                </div>
-
-                <div v-for="(item, itemIdx) in card.installments" :key="item.id" class="bg-white border border-purple-100 rounded p-2 mb-2 relative">
-                    <button @click="removeInstallment(cardIdx, itemIdx)" class="absolute top-1 right-2 text-red-300"><i class="fa-solid fa-xmark"></i></button>
-                    <input v-model="item.name" placeholder="分期項目" class="w-3/4 border-b text-[11px] font-bold text-purple-700 mb-1 outline-none">
-                    <div class="flex gap-1 text-[10px] mb-1">
-                        <div class="w-1/3">總額 <input type="number" v-model.number="item.totalAmount" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
-                        <div class="w-1/4">期數 <input type="number" v-model.number="item.periods" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
-                        <div class="w-1/3">利率(%) <input type="number" v-model.number="item.interestRate" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+            <!-- 🌟 拖曳容器 -->
+            <div id="cards-list" class="space-y-4">
+                <div v-for="(card, cardIdx) in cards" :key="card.id" class="border border-gray-200 rounded-lg p-2 bg-gray-50 shadow-sm">
+                    <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
+                        <i class="fa-solid fa-bars drag-handle cursor-move text-gray-400 ml-1"></i>
+                        <input type="color" v-model="card.color" class="w-6 h-6 shrink-0 cursor-pointer">
+                        <input v-model="card.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none text-purple-800" placeholder="卡片名稱">
+                        <button @click="deleteItemConfirm(cards, cardIdx)" class="text-red-400 text-xs p-1 shrink-0"><i class="fa-solid fa-trash"></i></button>
                     </div>
-                    <div class="text-[10px] bg-purple-50 p-1 rounded mb-2">起算: <input type="number" v-model.number="item.startYear" @change="generateCardSchedule(item)" class="w-10 border rounded text-center outline-none">年 <input type="number" v-model.number="item.startMonth" @change="generateCardSchedule(item)" class="w-6 border rounded text-center outline-none">月</div>
-                    
-                    <button @click="item.showSchedule = !item.showSchedule" class="w-full text-center text-[10px] py-1 text-blue-600 border border-blue-100 rounded bg-blue-50 outline-none">
-                        {{ item.showSchedule ? '隱藏明細 ▲' : '自訂細部本金/利息 ▼' }}
+                    <div class="flex gap-2 text-[10px] text-gray-600 mb-3 bg-white p-1.5 rounded border border-gray-200">
+                        <div class="flex items-center gap-1 flex-1">出帳日:每<input type="number" v-model.number="card.statementDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
+                        <div class="flex items-center gap-1 flex-1">截止日:每<input type="number" v-model.number="card.dueDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
+                    </div>
+
+                    <div v-for="(item, itemIdx) in card.installments" :key="item.id" class="bg-white border border-purple-100 rounded p-2 mb-2 relative">
+                        <button @click="deleteItemConfirm(card.installments, itemIdx)" class="absolute top-1 right-2 text-red-300"><i class="fa-solid fa-xmark"></i></button>
+                        <input v-model="item.name" placeholder="分期項目" class="w-3/4 border-b text-[11px] font-bold text-purple-700 mb-1 outline-none">
+                        <div class="flex gap-1 text-[10px] mb-1">
+                            <div class="w-1/3">總額 <input type="number" v-model.number="item.totalAmount" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                            <div class="w-1/4">期數 <input type="number" v-model.number="item.periods" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                            <div class="w-1/3">利率(%) <input type="number" v-model.number="item.interestRate" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                        </div>
+                        <div class="text-[10px] bg-purple-50 p-1 rounded mb-2">起算: <input type="number" v-model.number="item.startYear" @change="generateCardSchedule(item)" class="w-10 border rounded text-center outline-none">年 <input type="number" v-model.number="item.startMonth" @change="generateCardSchedule(item)" class="w-6 border rounded text-center outline-none">月</div>
+                        
+                        <button @click="item.showSchedule = !item.showSchedule" class="w-full text-center text-[10px] py-1 text-blue-600 border border-blue-100 rounded bg-blue-50 outline-none">
+                            {{ item.showSchedule ? '隱藏明細 ▲' : '自訂細部本金/利息 ▼' }}
+                        </button>
+                        <div v-if="item.showSchedule" class="mt-1 border rounded overflow-hidden">
+                            <div class="max-h-48 overflow-y-auto bg-white">
+                                <table class="w-full text-center text-[9px]">
+                                    <thead class="bg-gray-100 sticky top-0 text-gray-600"><tr><th class="py-1">期/年月</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-purple-600">總繳</th><th class="py-1">✏️</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="(sch, sIdx) in item.schedule" :key="sch.period" class="border-b" :class="sch.isEdited ? 'bg-yellow-50' : ''">
+                                            <td class="py-1 text-gray-500">{{sch.period}}期<br>{{sch.dueDate}}</td>
+                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                            <td class="py-1 font-bold text-purple-600">$ {{formatNumber(sch.total)}}</td>
+                                            <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <button @click="generateCardSchedule(item)" class="w-full py-1 bg-red-50 text-red-500 text-[9px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="addInstallment(cardIdx)" class="w-full border border-dashed rounded text-[11px] text-gray-500 py-1 hover:bg-gray-100 outline-none">+ 新增分期</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
+            <div class="flex justify-between items-center mb-3 border-b pb-2">
+                <h2 class="font-bold text-gray-700">貸款與攤還設定</h2>
+                <button @click="addLoan" class="text-blue-600 text-[11px] font-bold bg-blue-50 px-2 py-1 rounded">+ 新增貸款</button>
+            </div>
+            <!-- 🌟 拖曳容器 -->
+            <div id="loans-list" class="space-y-4">
+                <div v-for="(loan, loanIdx) in loans" :key="loan.id" class="border border-gray-200 rounded-lg p-2.5 bg-gray-50 shadow-sm">
+                    <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
+                        <i class="fa-solid fa-bars drag-handle cursor-move text-gray-400 ml-1"></i>
+                        <input type="color" v-model="loan.color" class="w-6 h-6 shrink-0 cursor-pointer">
+                        <input v-model="loan.name" class="font-bold bg-transparent border-b border-blue-300 text-sm flex-1 min-w-0 outline-none text-blue-800" placeholder="貸款名稱">
+                        <button @click="deleteItemConfirm(loans, loanIdx)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                        <div><label class="text-gray-500">貸款總額</label><input type="number" v-model.number="loan.totalAmount" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                        <div><label class="text-gray-500">年利率 (%)</label><input type="number" v-model.number="loan.annualRate" @change="generateLoanSchedule(loan)" step="0.01" class="w-full border rounded px-1.5 py-1 text-blue-700 font-bold outline-none"></div>
+                        <div><label class="text-gray-500">總期數 (月)</label><input type="number" v-model.number="loan.periods" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                        <div><label class="text-gray-500">寬限期 (只繳息)</label><input type="number" v-model.number="loan.gracePeriod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                    </div>
+
+                    <div class="mb-2 text-[10px]">
+                        <select v-model="loan.repaymentMethod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 bg-white outline-none">
+                            <option value="equal_installment">本息平均攤還 (每月繳款固定)</option>
+                            <option value="equal_principal">本金平均攤還 (每月本金固定，利息遞減)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-1 text-[10px] bg-blue-50 p-1.5 rounded mb-2 border border-blue-100">
+                        <span class="text-blue-700 font-bold">首次繳款</span>
+                        <input type="number" v-model.number="loan.startYear" @change="generateLoanSchedule(loan)" class="w-10 border rounded text-center py-0.5 outline-none">年
+                        <input type="number" v-model.number="loan.startMonth" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">月
+                        <input type="number" v-model.number="loan.dueDate" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">日
+                    </div>
+
+                    <div class="border border-orange-200 rounded p-1.5 bg-orange-50 mb-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-orange-700">⚡ 提前清償設定</span>
+                            <button @click="addEarlyRepayment(loan)" class="bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] outline-none">+ 新增</button>
+                        </div>
+                        <div v-for="(er, erIdx) in loan.earlyRepayments" :key="erIdx" class="flex items-center gap-1 mt-1 bg-white p-1 rounded border border-orange-100">
+                            <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期</span>
+                            <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="多還本金">
+                            <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
+                            <button @click="deleteItemConfirm(loan.earlyRepayments, erIdx); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <button @click="loan.showSchedule = !loan.showSchedule" class="w-full text-center text-[10px] py-1.5 text-blue-600 bg-white border border-blue-200 rounded font-bold outline-none">
+                        {{ loan.showSchedule ? '隱藏攤還明細表 ▲' : '自訂細部本金/利息 ▼' }}
                     </button>
-                    <div v-if="item.showSchedule" class="mt-1 border rounded overflow-hidden">
-                        <div class="max-h-48 overflow-y-auto bg-white">
+                    <div v-if="loan.showSchedule" class="mt-2 border rounded overflow-hidden">
+                        <div class="max-h-60 overflow-y-auto bg-white">
                             <table class="w-full text-center text-[9px]">
-                                <thead class="bg-gray-100 sticky top-0 text-gray-600"><tr><th class="py-1">期/年月</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-purple-600">總繳</th><th class="py-1">✏️</th></tr></thead>
+                                <thead class="bg-blue-50 sticky top-0 text-blue-800">
+                                    <tr><th class="py-1">期/日期</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-blue-600">總繳</th><th class="py-1">✏️</th></tr>
+                                </thead>
                                 <tbody>
-                                    <tr v-for="(sch, sIdx) in item.schedule" :key="sch.period" class="border-b" :class="sch.isEdited ? 'bg-yellow-50' : ''">
-                                        <td class="py-1 text-gray-500">{{sch.period}}期<br>{{sch.dueDate}}</td>
-                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                        <td class="py-1 font-bold text-purple-600">$ {{formatNumber(sch.total)}}</td>
+                                    <tr v-for="(sch, sIdx) in loan.schedule" :key="sch.period" class="border-b" :class="(sch.earlyAmt > 0) ? 'bg-orange-50' : (sch.isEdited ? 'bg-yellow-50' : '')">
+                                        <td class="py-1 text-gray-500">第{{sch.period}}期<br>{{sch.dueDate}}</td>
+                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none" :class="sch.earlyAmt>0?'border-orange-300':''"></td>
+                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                        <td class="py-1 font-bold text-blue-600">$ {{formatNumber(sch.totalToPay)}}<div v-if="sch.earlyAmt>0" class="text-[8px] text-orange-600 mt-0.5">含提前</div></td>
                                         <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
                                     </tr>
                                 </tbody>
                             </table>
-                            <div class="p-1 text-[8px] text-center text-gray-400 bg-gray-50">修改後，自動重算剩餘期數</div>
-                            <button @click="generateCardSchedule(item)" class="w-full py-1 bg-red-50 text-red-500 text-[9px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
+                            <button @click="generateLoanSchedule(loan)" class="w-full py-1.5 bg-red-50 text-red-500 text-[10px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
                         </div>
-                    </div>
-                </div>
-                <button @click="addInstallment(cardIdx)" class="w-full border border-dashed rounded text-[11px] text-gray-500 py-1 hover:bg-gray-100 outline-none">+ 新增分期</button>
-            </div>
-        </div>
-
-        <!-- 專業貸款模組 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">貸款與攤還設定 (含自訂明細)</h2>
-                <button @click="addLoan" class="text-blue-600 text-[11px] font-bold bg-blue-50 px-2 py-1 rounded">+ 新增貸款</button>
-            </div>
-            
-            <div v-for="(loan, loanIdx) in loans" :key="loan.id" class="border border-gray-200 rounded-lg p-2 mb-4 bg-gray-50 shadow-sm">
-                <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
-                    <input type="color" v-model="loan.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                    <input v-model="loan.name" class="font-bold bg-transparent border-b border-blue-300 text-sm flex-1 min-w-0 outline-none text-blue-800" placeholder="例如: 購車貸款">
-                    <button @click="removeLoan(loanIdx)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2 text-[10px] mb-2">
-                    <div><label class="text-gray-500">貸款總額</label><input type="number" v-model.number="loan.totalAmount" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                    <div><label class="text-gray-500">年利率 (%)</label><input type="number" v-model.number="loan.annualRate" @change="generateLoanSchedule(loan)" step="0.01" class="w-full border rounded px-1.5 py-1 text-blue-700 font-bold outline-none"></div>
-                    <div><label class="text-gray-500">總期數 (月)</label><input type="number" v-model.number="loan.periods" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                    <div><label class="text-gray-500">寬限期 (只繳息)</label><input type="number" v-model.number="loan.gracePeriod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                </div>
-
-                <div class="mb-2 text-[10px]">
-                    <label class="text-gray-500">還款方式</label>
-                    <select v-model="loan.repaymentMethod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 bg-white outline-none">
-                        <option value="equal_installment">本息平均攤還 (每月繳款固定)</option>
-                        <option value="equal_principal">本金平均攤還 (每月本金固定，利息遞減)</option>
-                    </select>
-                </div>
-
-                <div class="flex items-center gap-1 text-[10px] bg-blue-50 p-1.5 rounded mb-2 border border-blue-100">
-                    <span class="text-blue-700 font-bold">首次繳款</span>
-                    <input type="number" v-model.number="loan.startYear" @change="generateLoanSchedule(loan)" class="w-10 border rounded text-center py-0.5 outline-none">年
-                    <input type="number" v-model.number="loan.startMonth" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">月
-                    <input type="number" v-model.number="loan.dueDate" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">日
-                </div>
-
-                <div class="border border-orange-200 rounded p-1.5 bg-orange-50 mb-2">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-[10px] font-bold text-orange-700">⚡ 提前清償設定</span>
-                        <button @click="addEarlyRepayment(loan)" class="bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] outline-none">+ 新增</button>
-                    </div>
-                    <div v-for="(er, erIdx) in loan.earlyRepayments" :key="erIdx" class="flex items-center gap-1 mt-1 bg-white p-1 rounded border border-orange-100">
-                        <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期</span>
-                        <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="多還本金">
-                        <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
-                        <button @click="loan.earlyRepayments.splice(erIdx,1); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark text-xs"></i></button>
-                    </div>
-                </div>
-
-                <button @click="loan.showSchedule = !loan.showSchedule" class="w-full text-center text-[10px] py-1.5 text-blue-600 bg-white border border-blue-200 rounded font-bold outline-none">
-                    {{ loan.showSchedule ? '隱藏攤還明細表 ▲' : '自訂細部本金/利息 ▼' }}
-                </button>
-                <div v-if="loan.showSchedule" class="mt-2 border rounded overflow-hidden">
-                    <div class="max-h-60 overflow-y-auto bg-white">
-                        <table class="w-full text-center text-[9px]">
-                            <thead class="bg-blue-50 sticky top-0 text-blue-800">
-                                <tr><th class="py-1">期/日期</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-blue-600">總繳</th><th class="py-1">✏️</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="(sch, sIdx) in loan.schedule" :key="sch.period" class="border-b" :class="(sch.earlyAmt > 0) ? 'bg-orange-50' : (sch.isEdited ? 'bg-yellow-50' : '')">
-                                    <td class="py-1 text-gray-500">第{{sch.period}}期<br>{{sch.dueDate}}</td>
-                                    <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none" :class="sch.earlyAmt>0?'border-orange-300':''"></td>
-                                    <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                    <td class="py-1 font-bold text-blue-600">$ {{formatNumber(sch.totalToPay)}}<div v-if="sch.earlyAmt>0" class="text-[8px] text-orange-600 mt-0.5">含提前</div></td>
-                                    <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="p-1 text-[8px] text-center text-gray-400 bg-gray-50">修改後自動重算剩餘期數</div>
-                        <button @click="generateLoanSchedule(loan)" class="w-full py-1.5 bg-red-50 text-red-500 text-[10px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
                     </div>
                 </div>
             </div>
@@ -447,7 +529,6 @@
                 <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showCards" @change="updateCharts"> 信用卡</label>
                 <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showLoans" @change="updateCharts"> 貸款</label>
             </div>
-            <div class="text-[10px] text-gray-400 mt-2">💡 顏色請至【設定與貸款】修改。</div>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm p-4 print-border">
@@ -465,17 +546,51 @@
 
     <!-- ==================== 彈出視窗群 ==================== -->
     
+    <!-- PDF 列印選項面板 -->
+    <div v-if="pdfModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-sm p-5">
+            <h3 class="text-lg font-bold mb-4">選擇列印內容</h3>
+            <div class="space-y-2 text-sm text-gray-700 mb-5">
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showSummary"> 本月記帳摘要 (DTI與餘額)</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showIncome"> 收入與常態薪資清單</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showExpense"> 生活支出清單</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showCards"> 信用卡帳單明細</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showLoans"> 貸款攤還明細</label>
+            </div>
+            <div class="flex gap-2">
+                <button @click="pdfModal.show = false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold">取消</button>
+                <button @click="executePDF" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold shadow-md"><i class="fa-solid fa-print mr-1"></i> 生成 PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 月份快速選擇面板 -->
+    <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-[280px] p-5">
+            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+            <div class="flex items-center gap-2 mb-4">
+                <button @click="monthPicker.year--" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i class="fa-solid fa-minus"></i></button>
+                <div class="flex-1 text-center font-bold text-lg">{{ monthPicker.year }} 年</div>
+                <button @click="monthPicker.year++" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+                <button v-for="m in 12" :key="m" @click="selectMonth(m)" class="py-2 rounded font-bold transition" :class="(monthPicker.year===currentYear && m===currentMonth) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">{{ m }}月</button>
+            </div>
+        </div>
+    </div>
+
     <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 flex justify-between items-center text-gray-800">
-                <span><i class="fa-solid fa-database text-blue-500 mr-2"></i> 備份與匯出</span><button @click="dataModal.show = false" class="text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <span><i class="fa-solid fa-database text-blue-500 mr-2"></i> 備份與匯出</span>
+                <button @click="dataModal.show = false" class="text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button>
             </h3>
             <div class="space-y-3">
                 <button @click="shareBackupFile" class="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded-lg"><i class="fa-solid fa-share-nodes"></i> 儲存備份檔(JSON)</button>
                 <button @click="copyBackupText" class="w-full py-2 bg-gray-100 text-gray-700 font-bold rounded-lg"><i class="fa-regular fa-copy"></i> 複製代碼(純文字)</button>
                 <div class="border-t my-2"></div>
                 <button @click="shareExcelFile" class="w-full py-2 bg-green-100 text-green-700 font-bold rounded-lg"><i class="fa-solid fa-file-excel"></i> 匯出本月 CSV</button>
-                <button @click="exportPDF" class="w-full py-2 bg-red-100 text-red-700 font-bold rounded-lg"><i class="fa-solid fa-file-pdf"></i> 列印本月 PDF</button>
+                <button @click="pdfModal.show=true; dataModal.show=false;" class="w-full py-2 bg-red-100 text-red-700 font-bold rounded-lg"><i class="fa-solid fa-file-pdf"></i> 列印本月 PDF</button>
             </div>
             <div class="mt-4 border-t pt-3">
                 <h4 class="text-xs font-bold text-gray-500 mb-2">匯入還原資料</h4>
@@ -506,13 +621,13 @@
             <div v-if="modal.type === 'card'" class="mb-4 border border-purple-200 rounded p-2 bg-purple-50 text-xs">
                 <div class="flex justify-between items-center font-bold text-purple-700 mb-1">新增刷卡回饋折抵</div>
                 <div class="flex gap-2 items-center">
-                    <input type="number" v-model.number="modal.rewardAmount" placeholder="$" class="w-1/3 border rounded px-2 py-1 outline-none">
-                    <span class="text-gray-500">抵</span>
-                    <input type="number" v-model.number="modal.rewardYear" class="w-12 border rounded text-center py-1 outline-none"> 年
-                    <input type="number" v-model.number="modal.rewardMonth" class="w-8 border rounded text-center py-1 outline-none"> 月
+                    <input type="number" v-model.number="modal.rewardAmount" placeholder="$ 金額" class="w-1/3 border rounded px-2 py-1 outline-none">
+                    <span class="text-gray-500">折抵</span>
+                    <input type="number" v-model.number="modal.rewardYear" class="w-12 border rounded text-center py-1"> 年
+                    <input type="number" v-model.number="modal.rewardMonth" class="w-10 border rounded text-center py-1"> 月
                 </div>
             </div>
-            <div class="flex gap-2"><button @click="modal.show=false" class="flex-1 py-2 bg-gray-100 rounded-lg">取消</button><button @click="saveRecord" class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg">確認</button></div>
+            <div class="flex gap-2"><button @click="modal.show=false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold">取消</button><button @click="saveRecord" class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md">確認</button></div>
         </div>
     </div>
 
@@ -524,7 +639,7 @@
                 <input type="text" v-model="adhocIncModal.name" placeholder="項目 (如:發票中獎)" class="w-full border-2 border-gray-300 rounded px-3 py-2 outline-none focus:border-green-500">
                 <input type="number" v-model.number="adhocIncModal.amount" placeholder="$ 金額" class="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold outline-none focus:border-green-500">
             </div>
-            <div class="flex gap-2 mt-4"><button @click="adhocIncModal.show=false" class="flex-1 py-2 bg-gray-100 rounded">取消</button><button @click="saveAdhocIncome" class="flex-1 py-2 bg-green-500 text-white font-bold rounded">加入</button></div>
+            <div class="flex gap-2 mt-4"><button @click="adhocIncModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold">取消</button><button @click="saveAdhocIncome" class="flex-1 py-2 bg-green-500 text-white font-bold rounded shadow-md">加入</button></div>
         </div>
     </div>
 
@@ -536,7 +651,7 @@
                 <input type="text" v-model="adhocModal.name" placeholder="項目 (如:水費)" class="w-full border-2 border-gray-300 rounded px-3 py-2 outline-none focus:border-orange-500">
                 <input type="number" v-model.number="adhocModal.amount" placeholder="$ 金額" class="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold outline-none focus:border-orange-500">
             </div>
-            <div class="flex gap-2 mt-4"><button @click="adhocModal.show=false" class="flex-1 py-2 bg-gray-100 rounded">取消</button><button @click="saveAdhocExpense" class="flex-1 py-2 bg-orange-500 text-white font-bold rounded">加入</button></div>
+            <div class="flex gap-2 mt-4"><button @click="adhocModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold">取消</button><button @click="saveAdhocExpense" class="flex-1 py-2 bg-orange-500 text-white font-bold rounded shadow-md">加入</button></div>
         </div>
     </div>
 
@@ -547,9 +662,9 @@
             <div class="space-y-3">
                 <select v-model="txnModal.cardId" class="w-full border rounded px-3 py-2 text-sm font-bold bg-purple-50 text-purple-700 outline-none"><option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option></select>
                 <div class="flex gap-2"><input type="text" v-model="txnModal.name" placeholder="買什麼？" class="w-2/3 border-2 rounded px-3 py-1.5 text-sm outline-none focus:border-purple-400"><input type="number" v-model.number="txnModal.amount" placeholder="$" class="w-1/3 border-2 rounded px-3 py-1.5 text-sm font-bold text-red-600 outline-none focus:border-purple-400"></div>
-                <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm outline-none bg-white"></div>
+                <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間 (系統已自動帶入)</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none"></div>
             </div>
-            <button @click="saveTransaction" class="w-full mt-4 py-2 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700">加入卡費</button>
+            <button @click="saveTransaction" class="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition">加入卡費</button>
         </div>
     </div>
 </div>
@@ -558,6 +673,9 @@
     const { createApp } = Vue;
     let pieChartInstance = null;
     let lineChartInstance = null;
+    const realWorldDate = new Date();
+    const REAL_YEAR = realWorldDate.getFullYear();
+    const REAL_MONTH = realWorldDate.getMonth() + 1;
 
     createApp({
         data() {
@@ -568,24 +686,28 @@
                 
                 // 預設資料
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
-                adhocIncomes: [], // 新增：單筆臨時收入
+                adhocIncomes: [], 
                 fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
                 cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }],
-                loans: [{
-                    id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 300000, annualRate: 2.5, periods: 60,
-                    repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 15,
-                    earlyRepayments: [], schedule: [], showSchedule: false
-                }],
+                loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 300000, annualRate: 2.5, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 15, earlyRepayments: [], schedule: [], showSchedule: false }],
                 
                 adhocExpenses: [], records: {}, transactions: [], incomeDrafts: {}, uiState: { cardDetails: {} },
+                
+                // 歷史時空鎖定：存儲過去月份的 Snapshot
+                historicalSnapshots: {},
+                
                 dataModal: { show: false }, 
                 modal: { show: false, type: '', data: null, inputAmount: 0, paymentMethod: 'cash', showReward: false, rewardAmount: 0, rewardYear: 0, rewardMonth: 0 },
-                adhocModal: { show: false, name: '', amount: '' },
-                adhocIncModal: { show: false, name: '', amount: '' }, // 新增：單筆收入 Modal
-                txnModal: { show: false, cardId: '', name: '', amount: '', datetime: '' }
+                adhocModal: { show: false, name: '', amount: '' }, adhocIncModal: { show: false, name: '', amount: '' },
+                txnModal: { show: false, cardId: '', name: '', amount: '', datetime: '' },
+                monthPicker: { show: false, year: now.getFullYear() },
+                pdfModal: { show: false }, pdfConfig: { showSummary: true, showIncome: true, showExpense: true, showCards: true, showLoans: true }
             };
         },
         computed: {
+            isHistoricalView() {
+                return (this.currentYear < REAL_YEAR) || (this.currentYear === REAL_YEAR && this.currentMonth < REAL_MONTH);
+            },
             hasChartData() { 
                 if(!this.chartFilters.showFixed && !this.chartFilters.showCards && !this.chartFilters.showLoans) return false;
                 let t = 0;
@@ -595,36 +717,39 @@
                 return t > 0; 
             },
             ledgerIncomes() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    return this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerIncomes || [];
+                }
                 let list = [];
-                // 常態薪資
                 this.incomes.forEach(inc => {
-                    let key = `income_${inc.id}_${this.currentYear}_${this.currentMonth}`;
-                    let rec = this.records[key];
-                    list.push({ id: inc.id, recordId: key, type: 'fixed', name: inc.name, expectedAmount: this.getIncomeExpected(inc), isReceived: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '' });
+                    let key = `income_${inc.id}_${this.currentYear}_${this.currentMonth}`; let rec = this.records[key];
+                    list.push({ id: inc.id, recordId: key, type: 'fixed', name: inc.name, expectedAmount: this.getIncomeExpected(inc), isReceived: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '', baseSalary: inc.baseSalary, fixedAllowances: inc.fixedAllowances, fixedDeductions: inc.fixedDeductions });
                 });
-                // 單筆臨時收入
-                let adhocThisMonth = this.adhocIncomes.filter(a => a.year === this.currentYear && a.month === this.currentMonth);
-                adhocThisMonth.forEach(a => {
-                    let key = `income_adhoc_${a.id}`;
-                    let rec = this.records[key];
+                this.adhocIncomes.filter(a => a.year === this.currentYear && a.month === this.currentMonth).forEach(a => {
+                    let key = `income_adhoc_${a.id}`; let rec = this.records[key];
                     list.push({ sourceId: a.id, recordId: key, type: 'adhoc', name: a.name, expectedAmount: a.amount, isReceived: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '' });
                 });
                 return list;
             },
             ledgerOtherExpenses() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    return this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerOtherExpenses || [];
+                }
                 let list = [];
                 this.fixedExpenses.forEach(f => {
                     let key = `expense_fixed_${f.id}_${this.currentYear}_${this.currentMonth}`; let rec = this.records[key];
                     list.push({ recordId: key, type: 'fixed', sourceId: f.id, name: f.name, expectedAmount: f.amount, color: f.color || '#f97316', isPaid: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '', paymentMethod: rec ? rec.paymentMethod : '' });
                 });
-                let adhocThisMonth = this.adhocExpenses.filter(a => a.year === this.currentYear && a.month === this.currentMonth);
-                adhocThisMonth.forEach(a => {
+                this.adhocExpenses.filter(a => a.year === this.currentYear && a.month === this.currentMonth).forEach(a => {
                     let key = `expense_adhoc_${a.id}`; let rec = this.records[key];
                     list.push({ recordId: key, type: 'adhoc', sourceId: a.id, name: a.name, expectedAmount: a.amount, color: '#fb923c', isPaid: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '', paymentMethod: rec ? rec.paymentMethod : '' });
                 });
                 return list;
             },
             ledgerCardBills() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    return this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerCardBills || [];
+                }
                 return this.cards.map(card => {
                     let billTotal = 0; let details = { installments: [], transactions: [] };
                     if (card.installments) card.installments.forEach(item => {
@@ -636,10 +761,14 @@
                     });
                     this.transactions.filter(t => t.cardId === card.id && t.year === this.currentYear && t.month === this.currentMonth).forEach(t => { billTotal += t.amount; details.transactions.push(t); });
                     const recordKey = `expense_card_${card.id}_${this.currentYear}_${this.currentMonth}`;
+                    if (this.uiState.cardDetails[card.id] === undefined) this.uiState.cardDetails[card.id] = false;
                     return { id: card.id, recordId: recordKey, type: 'card', name: card.name, expectedAmount: billTotal, color: card.color || '#a855f7', statementDate: card.statementDate||1, dueDate: card.dueDate||15, details: details, isPaid: !!this.records[recordKey], actualAmount: this.records[recordKey] ? this.records[recordKey].amount : 0, date: this.records[recordKey] ? this.records[recordKey].date : '' };
                 }).filter(b => b.expectedAmount > 0 || b.details.transactions.length > 0); 
             },
             ledgerLoans() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    return this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerLoans || [];
+                }
                 let list = [];
                 this.loans.forEach(loan => {
                     let pDiff = (this.currentYear - loan.startYear) * 12 + (this.currentMonth - loan.startMonth) + 1;
@@ -656,17 +785,13 @@
             },
             monthlyStats() {
                 let estDue = 0, actPaid = 0, estInc = 0, actRec = 0;
-                this.ledgerCardBills.forEach(b => { if(!b.isPaid) estDue+=b.expectedAmount; else actPaid+=b.actualAmount; });
-                this.ledgerLoans.forEach(l => { if(!l.isPaid) estDue+=l.expectedAmount; else actPaid+=l.actualAmount; });
-                this.ledgerOtherExpenses.forEach(e => { if(!e.isPaid) estDue+=e.expectedAmount; else { if(e.paymentMethod==='cash'||e.paymentMethod==='transfer') actPaid+=e.actualAmount; } });
-                this.ledgerIncomes.forEach(i => {
-                    estInc += i.expectedAmount;
-                    if(i.isReceived) actRec += i.actualAmount;
-                });
+                this.ledgerCardBills.forEach(b => { estDue += b.expectedAmount; if(b.isPaid) actPaid+=b.actualAmount; });
+                this.ledgerLoans.forEach(l => { estDue += l.expectedAmount; if(l.isPaid) actPaid+=l.actualAmount; });
+                this.ledgerOtherExpenses.forEach(e => { estDue += e.expectedAmount; if(e.isPaid && (e.paymentMethod==='cash'||e.paymentMethod==='transfer')) actPaid+=e.actualAmount; });
+                this.ledgerIncomes.forEach(i => { estInc += i.expectedAmount; if(i.isReceived) actRec += i.actualAmount; });
                 
-                // 負債比 DTI 計算
                 let dti = estInc > 0 ? (estDue / estInc) * 100 : 0;
-                return { estimatedDue: estDue, actualPaid: actPaid, expectedIncome: estInc, actualReceived: actRec, actualBalance: actRec - actPaid, dti: dti };
+                return { expectedIncome: estInc, estimatedDue: estDue, actualPaid: actPaid, actualReceived: actRec, actualBalance: actRec - actPaid, dti: dti };
             }
         },
         mounted() {
@@ -674,13 +799,50 @@
             this.cards.forEach(card => { (card.installments||[]).forEach(inst => { if(!inst.schedule || inst.schedule.length===0) this.generateCardSchedule(inst); }); });
             this.loans.forEach(loan => { if(!loan.schedule || loan.schedule.length===0) this.generateLoanSchedule(loan); });
             this.$watch('$data', () => { this.saveData(); }, { deep: true });
-            this.$watch('currentMonth', () => { this.syncIncomeDrafts(); });
-            this.$watch('currentYear', () => { this.syncIncomeDrafts(); });
+            this.$watch('currentMonth', () => { this.handleMonthChange(); });
+            this.$watch('currentYear', () => { this.handleMonthChange(); });
+            
+            // 初始化拖曳排序
+            this.$nextTick(() => { this.initSortable(); });
         },
         methods: {
             formatNumber(num) { return (Number(num) || 0).toLocaleString('en-US'); },
             formatDateTimeDisplay(dt) { return dt ? dt.replace('T', ' ') : ''; },
+            deleteItemConfirm(array, index) { if(confirm("確定要刪除這筆資料嗎？刪除後無法復原。")) { array.splice(index, 1); } },
+            
+            // Drag and Drop Initialization
+            initSortable() {
+                const configs = [
+                    { id: 'incomes-list', list: this.incomes }, { id: 'fixed-expenses-list', list: this.fixedExpenses },
+                    { id: 'cards-list', list: this.cards }, { id: 'loans-list', list: this.loans }
+                ];
+                configs.forEach(cfg => {
+                    let el = document.getElementById(cfg.id);
+                    if(el && !el.sortableInstalled) {
+                        Sortable.create(el, { handle: '.drag-handle', animation: 150, onEnd: (evt) => {
+                            const item = cfg.list.splice(evt.oldIndex, 1)[0]; cfg.list.splice(evt.newIndex, 0, item);
+                        }});
+                        el.sortableInstalled = true;
+                    }
+                });
+            },
+
+            // Month Picker & History Snapshot Logic
             changeMonth(delta) { let d = new Date(this.currentYear, this.currentMonth - 1 + delta, 1); this.currentYear = d.getFullYear(); this.currentMonth = d.getMonth() + 1; },
+            selectMonth(m) { this.currentYear = this.monthPicker.year; this.currentMonth = m; this.monthPicker.show = false; },
+            handleMonthChange() {
+                this.syncIncomeDrafts();
+                // 如果回到了目前的現實月份，嘗試存一個 Snapshot
+                if (this.currentYear === REAL_YEAR && this.currentMonth === REAL_MONTH) {
+                    this.historicalSnapshots[`${REAL_YEAR}_${REAL_MONTH}`] = {
+                        ledgerIncomes: JSON.parse(JSON.stringify(this.ledgerIncomes)),
+                        ledgerOtherExpenses: JSON.parse(JSON.stringify(this.ledgerOtherExpenses)),
+                        ledgerCardBills: JSON.parse(JSON.stringify(this.ledgerCardBills)),
+                        ledgerLoans: JSON.parse(JSON.stringify(this.ledgerLoans))
+                    };
+                }
+            },
+            
             getPaymentMethodName(pm) { if (pm === 'cash') return '現金'; if (pm === 'transfer') return '轉帳'; if (pm && pm.startsWith('card_')) { let c = this.cards.find(x => x.id === pm.replace('card_','')); return c ? `刷卡 (${c.name})` : '刷卡'; } return ''; },
             toggleCardUI(id) { this.uiState.cardDetails[id] = !this.uiState.cardDetails[id]; },
             
@@ -716,8 +878,12 @@
                 this.incomes.forEach(inc => {
                     let key = this.getDraftKey(inc); let recKey = `income_${inc.id}_${this.currentYear}_${this.currentMonth}`;
                     if (!this.incomeDrafts[key]) {
-                        if (this.records[recKey] && this.records[recKey].breakdown) this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown));
-                        else this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false };
+                        if (this.records[recKey] && this.records[recKey].breakdown) {
+                            // 🌟 修正 Vue 響應式賦值
+                            this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown));
+                        } else { 
+                            this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false }; 
+                        }
                     }
                 });
             },
@@ -732,25 +898,27 @@
             },
             isIncomeReceived(inc) { return !!this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`] || !!this.records[`income_adhoc_${inc.sourceId}`]; },
             getIncomeActual(inc) { return (this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`]?.amount || this.records[`income_adhoc_${inc.sourceId}`]?.amount || 0); },
+            addTempIncomeItem(inc, field) { 
+                let draft = this.incomeDrafts[this.getDraftKey(inc)];
+                if(!draft[field]) draft[field] = [];
+                draft[field].push({ name:'', type:'fixed', amount:'' }); 
+            },
 
             // --- Modals & Records ---
             openRecordModal(type, data) {
-                this.modal.type = type; this.modal.data = data; this.modal.inputAmount = data.expectedAmount;
+                this.modal.type = type; this.modal.data = data; this.modal.inputAmount = type === 'income' ? this.getIncomeExpected(data) : data.expectedAmount;
                 this.modal.paymentMethod = 'cash'; this.modal.showReward = false; this.modal.rewardAmount = '';
                 let tm = this.currentMonth + 1; let ty = this.currentYear; if(tm > 12) { tm = 1; ty++; }
                 this.modal.rewardYear = ty; this.modal.rewardMonth = tm; this.modal.show = true;
             },
             saveRecord() {
                 const today = new Date(); const dStr = `${today.getMonth()+1}/${today.getDate()}`;
-                let key = this.modal.data.recordId; // 通用 recordId
-                
+                let key = this.modal.data.recordId; 
                 if (this.modal.type === 'income') {
                     if (this.modal.data.type === 'fixed') {
                         let draft = this.incomeDrafts[this.getDraftKey(this.modal.data)];
                         this.records[key] = { amount: this.modal.inputAmount, date: dStr, breakdown: JSON.parse(JSON.stringify(draft)) };
-                    } else {
-                        this.records[key] = { amount: this.modal.inputAmount, date: dStr }; // 單筆收入無 breakdown
-                    }
+                    } else { this.records[key] = { amount: this.modal.inputAmount, date: dStr }; }
                 } else if (this.modal.type === 'other_expense') {
                     this.records[key] = { amount: this.modal.inputAmount, date: dStr, paymentMethod: this.modal.paymentMethod };
                     if (this.modal.paymentMethod.startsWith('card_')) this.transactions.push({ id: 'txn_'+Date.now(), linkedRecordKey: key, cardId: this.modal.paymentMethod.replace('card_',''), year: this.currentYear, month: this.currentMonth, name: `[代繳] ${this.modal.data.name}`, amount: this.modal.inputAmount, date: dStr, datetime: this.getLocalDatetimeStr() });
@@ -760,24 +928,18 @@
                 } else { this.records[key] = { amount: this.modal.inputAmount, date: dStr }; }
                 this.modal.show = false;
             },
-            cancelRecord(type, id_or_key) {
-                delete this.records[id_or_key]; this.transactions = this.transactions.filter(t => t.linkedRecordKey !== id_or_key);
-            },
-            
-            // 單筆收入
+            cancelRecord(type, id_or_key) { delete this.records[id_or_key]; this.transactions = this.transactions.filter(t => t.linkedRecordKey !== id_or_key); },
             saveAdhocIncome() {
                 if(!this.adhocIncModal.name || !this.adhocIncModal.amount) return alert("請填寫");
                 this.adhocIncomes.push({ id: 'adhocinc_'+Date.now(), year: this.currentYear, month: this.currentMonth, name: this.adhocIncModal.name, amount: Number(this.adhocIncModal.amount) });
                 this.adhocIncModal.show = false; this.adhocIncModal.name = ''; this.adhocIncModal.amount = '';
             },
-            deleteAdhocIncome(id) { if(confirm("刪除這筆收入？")) { this.adhocIncomes = this.adhocIncomes.filter(a => a.id !== id); delete this.records[`income_adhoc_${id}`]; } },
-
+            deleteRecord(type, id) { if(confirm("確定刪除？")) { if(type==='income_adhoc') { this.adhocIncomes = this.adhocIncomes.filter(a => a.id !== id); delete this.records[`income_adhoc_${id}`]; } else if (type==='expense_adhoc') { this.adhocExpenses = this.adhocExpenses.filter(a => a.id !== id); delete this.records[`expense_adhoc_${id}`]; } else if (type==='txn') { this.transactions = this.transactions.filter(t => t.id !== id); } } },
             saveAdhocExpense() {
                 if(!this.adhocModal.name || !this.adhocModal.amount) return alert("請填寫");
                 this.adhocExpenses.push({ id: 'adhoc_'+Date.now(), year: this.currentYear, month: this.currentMonth, name: this.adhocModal.name, amount: Number(this.adhocModal.amount) });
                 this.adhocModal.show = false; this.adhocModal.name = ''; this.adhocModal.amount = '';
             },
-            deleteAdhocExpense(id) { if(confirm("刪除這筆支出？")) { this.adhocExpenses = this.adhocExpenses.filter(a => a.id !== id); delete this.records[`expense_adhoc_${id}`]; } },
             getLocalDatetimeStr() { const n = new Date(); n.setMinutes(n.getMinutes() - n.getTimezoneOffset()); return n.toISOString().slice(0, 19); },
             openTxnModal() { this.txnModal = { show: true, cardId: '', name: '', amount: '', datetime: this.getLocalDatetimeStr() }; if(this.cards.length>0) this.txnModal.cardId = this.cards[0].id; },
             saveTransaction() {
@@ -785,15 +947,14 @@
                 this.transactions.push({ id: 'txn_'+Date.now(), cardId: this.txnModal.cardId, year: this.currentYear, month: this.currentMonth, name: this.txnModal.name, amount: Number(this.txnModal.amount), date: new Date().toLocaleDateString(), datetime: this.txnModal.datetime });
                 this.txnModal.show = false;
             },
-            deleteTransaction(id) { if(confirm("刪除這筆明細？")) this.transactions = this.transactions.filter(t => t.id !== id); },
 
             // --- Settings CRUD & Override Engine ---
-            addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); },
+            addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
             removeIncome(index) { this.incomes.splice(index, 1); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
-            addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); },
-            addCard() { this.cards.push({ id: 'card_'+Date.now(), name: '', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }); },
-            removeCard(index) { if(confirm('刪除卡片？')) this.cards.splice(index, 1); },
+            addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); this.$nextTick(() => { this.initSortable(); }); },
+            addCard() { this.cards.push({ id: 'card_'+Date.now(), name: '', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }); this.$nextTick(() => { this.initSortable(); }); },
+            removeCard(index) { this.cards.splice(index, 1); },
             addInstallment(cardIdx) {
                 const item = { id: 'inst_'+Date.now(), name: '', totalAmount: 0, periods: 12, interestRate: 0, startYear: this.currentYear, startMonth: this.currentMonth, showSchedule: false, schedule: [] };
                 if(!this.cards[cardIdx].installments) this.cards[cardIdx].installments = [];
@@ -803,28 +964,61 @@
             generateCardSchedule(item) {
                 let p = Number(item.totalAmount)||0; let n = Number(item.periods)||1; let rate = Number(item.interestRate)||0; let mRate = (rate/100)/12;
                 let sy = Number(item.startYear)||this.currentYear; let sm = Number(item.startMonth)||this.currentMonth;
-                let bal = p; item.schedule = [];
+                
+                // 歷史鎖定：保留歷史排程
+                let oldSch = item.schedule || [];
+                item.schedule = [];
+                let bal = p; 
+
                 for (let i = 1; i <= n; i++) {
+                    let curD = new Date(sy, sm - 2 + i, 1);
+                    let y = curD.getFullYear(); let m = curD.getMonth() + 1;
+                    
+                    if (y < REAL_YEAR || (y === REAL_YEAR && m < REAL_MONTH)) {
+                        let oldRow = oldSch.find(s => s.period === i);
+                        if (oldRow) {
+                            item.schedule.push(oldRow);
+                            bal -= oldRow.principal;
+                            continue;
+                        }
+                    }
+
                     let int = Math.round(bal * mRate); let prin = 0;
-                    if (rate === 0) { prin = Math.floor(p/n); if(i===1) prin += (p%n); } 
-                    else { prin = Math.round((p*mRate*Math.pow(1+mRate,n))/(Math.pow(1+mRate,n)-1)) - int; }
-                    if (prin > bal || i===n) prin = bal; bal -= prin; let curD = new Date(sy, sm - 2 + i, 1);
-                    item.schedule.push({ period: i, dueDate: `${curD.getFullYear()}/${String(curD.getMonth()+1).padStart(2,'0')}`, principal: prin, interest: int, total: prin + int, balance: Math.max(0, bal), isEdited: false });
+                    if (rate === 0) { prin = Math.floor(bal/(n-i+1)); if(i===1 && oldSch.length===0) prin += (bal%(n-i+1)); } 
+                    else { prin = Math.round((bal*mRate*Math.pow(1+mRate,n-i+1))/(Math.pow(1+mRate,n-i+1)-1)) - int; }
+                    if (prin > bal || i===n) prin = bal; bal -= prin; 
+                    item.schedule.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}`, principal: prin, interest: int, total: prin + int, balance: Math.max(0, bal), isEdited: false });
                 }
             },
             
             addLoan() {
                 this.loans.push({ id: 'loan_'+Date.now(), name: '', color: '#3b82f6', totalAmount: 100000, annualRate: 2.0, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: this.currentYear, startMonth: this.currentMonth, dueDate: 1, earlyRepayments: [], schedule: [], showSchedule: false });
                 this.generateLoanSchedule(this.loans[this.loans.length - 1]);
+                this.$nextTick(() => { this.initSortable(); });
             },
-            removeLoan(index) { if(confirm('刪除貸款？')) this.loans.splice(index, 1); },
+            removeLoan(index) { this.loans.splice(index, 1); },
             addEarlyRepayment(loan) { if(!loan.earlyRepayments) loan.earlyRepayments = []; loan.earlyRepayments.push({ period: 1, amount: 0, penalty: 0 }); },
             generateLoanSchedule(loan) {
                 let p = Number(loan.totalAmount)||0; let n = Number(loan.periods)||1; let r = (Number(loan.annualRate)||0)/100/12;
                 let grace = Number(loan.gracePeriod)||0; let method = loan.repaymentMethod || 'equal_installment';
                 let sd = new Date(Number(loan.startYear)||this.currentYear, (Number(loan.startMonth)||this.currentMonth)-1, Number(loan.dueDate)||1);
+                
+                let oldSch = loan.schedule || [];
                 let sch = []; let bal = p; let early = loan.earlyRepayments || [];
+                
                 for (let i = 1; i <= n; i++) {
+                    let curD = new Date(sd); curD.setMonth(curD.getMonth() + (i - 1));
+                    let y = curD.getFullYear(); let m = curD.getMonth() + 1;
+
+                    if (y < REAL_YEAR || (y === REAL_YEAR && m < REAL_MONTH)) {
+                        let oldRow = oldSch.find(s => s.period === i);
+                        if (oldRow) {
+                            sch.push(oldRow);
+                            bal = oldRow.balance;
+                            continue;
+                        }
+                    }
+
                     let isGrace = (i <= grace); let remN = n - i + 1; let int = Math.round(bal * r); let prin = 0;
                     if (!isGrace) {
                         if (method === 'equal_installment') { if(r===0) prin = Math.round(bal/remN); else prin = Math.round((bal*r*Math.pow(1+r,remN))/(Math.pow(1+r,remN)-1)) - int; }
@@ -833,8 +1027,8 @@
                     if (prin > bal || i === n) prin = bal;
                     let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0;
                     if (match) { eAmt = Number(match.amount)||0; pen = Number(match.penalty)||0; if(eAmt > bal-prin) eAmt = bal-prin; }
-                    bal -= (prin + eAmt); let curD = new Date(sd); curD.setMonth(curD.getMonth() + (i - 1));
-                    sch.push({ period: i, dueDate: `${curD.getFullYear()}/${String(curD.getMonth()+1).padStart(2,'0')}/${String(curD.getDate()).padStart(2,'0')}`, principal: prin, interest: int, earlyAmt: eAmt, penalty: pen, totalToPay: prin + int + eAmt + pen, balance: Math.max(0, bal), isEdited: false });
+                    bal -= (prin + eAmt); 
+                    sch.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}/${String(curD.getDate()).padStart(2,'0')}`, principal: prin, interest: int, earlyAmt: eAmt, penalty: pen, totalToPay: prin + int + eAmt + pen, balance: Math.max(0, bal), isEdited: false });
                     if (bal <= 0) break;
                 }
                 loan.schedule = sch;
@@ -859,15 +1053,16 @@
                 }
             },
 
-            // --- 系統 ---
-            saveData() { localStorage.setItem('cashflow_v14', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions })); },
+            // --- 系統匯出入與 PDF ---
+            saveData() { localStorage.setItem('cashflow_v15', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v14') || localStorage.getItem('cashflow_v13') || localStorage.getItem('cashflow_v12');
+                let saved = localStorage.getItem('cashflow_v15') || localStorage.getItem('cashflow_v14');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
                         if(d.incomes) this.incomes = d.incomes; if(d.adhocIncomes) this.adhocIncomes = d.adhocIncomes; if(d.fixedExpenses) this.fixedExpenses = d.fixedExpenses; if(d.adhocExpenses) this.adhocExpenses = d.adhocExpenses;
                         if(d.cards) this.cards = d.cards; if(d.loans) this.loans = d.loans; if(d.records) this.records = d.records; if(d.transactions) this.transactions = d.transactions;
+                        if(d.historicalSnapshots) this.historicalSnapshots = d.historicalSnapshots;
                     } catch (e) {}
                 }
                 this.fixedExpenses.forEach(f => { if(!f.color) f.color = '#f97316'; });
@@ -877,17 +1072,18 @@
             async shareFileObj(c, n, m) {
                 try { const f = new File([c], n, { type: m }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: n }); } else { const u = URL.createObjectURL(f); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); } this.dataModal.show = false; } catch (err) {}
             },
-            shareBackupFile() { this.shareFileObj(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions }), 'CashFlow_Backup.json', 'application/json'); },
+            shareBackupFile() { this.shareFileObj(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
             shareExcelFile() {
                 let csv = '\uFEFFCashFlow 報表\n\n帳單,預估金額,實際金額\n';
                 this.ledgerOtherExpenses.forEach(e => csv += `[支出] ${e.name},${e.expectedAmount},${e.actualAmount}\n`);
                 this.ledgerCardBills.forEach(b => csv += `[卡費] ${b.name},${b.expectedAmount},${b.actualAmount}\n`);
                 this.shareFileObj(csv, `CashFlow_${this.currentYear}_${this.currentMonth}.csv`, 'text/csv');
             },
-            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
-            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; alert('🎉 還原成功！'); this.dataModal.show = false; } catch (err) { alert('❌ 格式錯誤。'); } } },
-            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; alert('🎉 匯入成功！'); this.dataModal.show = false; } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
-            exportPDF() { this.dataModal.show = false; this.activeTab = 'ledger'; setTimeout(() => { window.print(); }, 300); }
+            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
+            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 還原成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 格式錯誤。'); } } },
+            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 匯入成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
+            exportPDF() { this.pdfModal.show = true; this.dataModal.show = false; },
+            executePDF() { this.pdfModal.show = false; this.activeTab = 'ledger'; setTimeout(() => { window.print(); }, 300); }
         }
     }).mount('#app');
 </script>
