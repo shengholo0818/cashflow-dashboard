@@ -11,24 +11,21 @@
     <meta name="apple-mobile-web-app-title" content="CashFlow">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
     
-    <!-- 引入核心套件 -->
+    <!-- 核心套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入拖曳排序套件 -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <style>
         /* 螢幕顯示專用 */
-        @media screen {
-            .print-only { display: none !important; }
-        }
-        /* 列印 PDF 專用完美排版 */
+        @media screen { .print-only { display: none !important; } }
+        /* 列印 PDF 專用排版 */
         @media print {
             .no-print { display: none !important; }
             body { background: white !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; margin: 0; padding: 0; }
-            #app { box-shadow: none !important; background: transparent !important; max-width: 100% !important; padding: 0 !important; }
+            #app { box-shadow: none !important; background: transparent !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
             .print-only { display: block !important; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
             th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -80,7 +77,9 @@
             <div class="pdf-section-title">收入明細</div>
             <table>
                 <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr>
-                <tr v-for="inc in ledgerIncomes"><td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td></tr>
+                <tr v-for="inc in ledgerIncomes" :key="'p_inc_'+inc.recordId">
+                    <td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td>
+                </tr>
             </table>
         </div>
 
@@ -88,7 +87,9 @@
             <div class="pdf-section-title">生活支出與繳費</div>
             <table>
                 <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr>
-                <tr v-for="exp in ledgerOtherExpenses"><td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳' : '未繳' }}</td></tr>
+                <tr v-for="exp in ledgerOtherExpenses" :key="'p_exp_'+exp.recordId">
+                    <td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳' : '未繳' }}</td>
+                </tr>
             </table>
         </div>
 
@@ -96,7 +97,9 @@
             <div class="pdf-section-title">信用卡帳單</div>
             <table>
                 <tr><th>信用卡名稱</th><th>當期總計</th><th>實際繳納</th><th>狀態</th></tr>
-                <tr v-for="bill in ledgerCardBills"><td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td></tr>
+                <tr v-for="bill in ledgerCardBills" :key="'p_card_'+bill.id">
+                    <td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td>
+                </tr>
             </table>
         </div>
 
@@ -104,14 +107,17 @@
             <div class="pdf-section-title">貸款攤還</div>
             <table>
                 <tr><th>貸款名稱</th><th>期數</th><th>本金 / 利息</th><th>應繳總額</th><th>實際繳納</th></tr>
-                <tr v-for="loan in ledgerLoans"><td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td></tr>
+                <tr v-for="loan in ledgerLoans" :key="'p_loan_'+loan.recordId">
+                    <td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td>
+                </tr>
             </table>
         </div>
     </div>
 
-    <!-- ==================== 手機 UI 介面 ==================== -->
+    <!-- ==================== 手機螢幕介面 (不列印) ==================== -->
     <div class="no-print">
-        <!-- 頂部導覽列 -->
+        
+        <!-- 頂部導覽與備份 -->
         <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative">
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
@@ -121,17 +127,17 @@
             </button>
         </div>
 
-        <!-- 頁籤導覽 -->
+        <!-- 頁籤導覽列 -->
         <div class="flex bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-            <button @click="activeTab = 'ledger'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
-            <button @click="activeTab = 'settings'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
+            <button @click="switchTab('ledger')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
+            <button @click="switchTab('settings')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
             <button @click="switchTab('charts')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'charts' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-chart-pie mr-1"></i> 報表</button>
         </div>
 
-        <!-- ==================== 頁籤 1：本月記帳本 ==================== -->
+        <!-- ==================== TAB 1：本月記帳本 ==================== -->
         <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
-            <!-- 🌟 年月切換器 (點擊開啟選單) -->
+            <!-- 年月選擇器 -->
             <div class="flex justify-between items-center bg-white rounded-full p-1 shadow-sm">
                 <button @click="changeMonth(-1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-left"></i></button>
                 <div @click="monthPicker.show = true" class="font-bold text-lg text-gray-800 cursor-pointer hover:bg-gray-100 px-4 py-1 rounded-full transition flex items-center gap-2">
@@ -140,53 +146,45 @@
                 <button @click="changeMonth(1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
-            <!-- 歷史快照警示 -->
+            <!-- 歷史鎖定警示 -->
             <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
                 <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
-                <div>
-                    <span class="font-bold">歷史時空鎖定模式</span><br>
-                    您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處的資料。
-                </div>
+                <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處資料。</div>
             </div>
 
+            <!-- 儀表板卡片區 -->
             <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
-                <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣除現金支出)</div>
+                <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣現金支出)</div>
                 <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
             </div>
             
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 border-gray-300">
                     <div class="text-[11px] text-gray-500 mb-1">未繳帳單/待付支出</div>
-                    <!-- 💡 已修復：這裡現在只會顯示「真的還沒繳」的金額總和 -->
                     <div class="text-lg font-bold text-gray-700">$ {{ formatNumber(monthlyStats.unpaidDue) }}</div>
                 </div>
                 <div class="bg-blue-50 p-3 rounded-xl shadow-sm border-l-4 border-blue-500">
                     <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
                     <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
                 </div>
-                <!-- 預估財務健康度 -->
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
-                    <div class="text-[11px] text-gray-500">預估財務健康度 (總預估支出 ÷ 總預估收入)</div>
+                    <div class="text-[11px] text-gray-500">預估財務健康度 (總支出 ÷ 總收入)</div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
-                            {{ monthlyStats.dti.toFixed(1) }}%
-                        </span>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
-                            {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
-                        </span>
+                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">{{ monthlyStats.dti.toFixed(1) }}%</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">{{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 1. 本月收入 -->
+            <!-- Ledger: 收入區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">1. 本月收入</h2>
-                    <button v-if="!isHistoricalView" @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 單筆收入</button>
+                    <button v-if="!isHistoricalView" @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100">+ 單筆收入</button>
                 </div>
                 <div v-if="ledgerIncomes.length === 0" class="text-center text-xs text-gray-400 py-2">無收入紀錄</div>
                 
-                <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30 relative">
+                <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30">
                     <div class="flex justify-between items-center">
                         <div class="flex-1 min-w-0 pr-2">
                             <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
@@ -205,410 +203,406 @@
                     </div>
                     
                     <div v-if="inc.type === 'fixed' && incomeDrafts[getDraftKey(inc)] && !inc.isReceived && !isHistoricalView" class="mt-2 bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
-                        <button @click="incomeDrafts[getDraftKey(inc)].showDetails = !incomeDrafts[getDraftKey(inc)].showDetails" class="w-full text-center text-[11px] py-1.5 text-blue-600 bg-gray-50 border-t border-gray-100">
+                        <button @click="incomeDrafts[getDraftKey(inc)].showDetails = !incomeDrafts[getDraftKey(inc)].showDetails" class="w-full text-center text-[11px] py-1.5 text-blue-600 bg-gray-50 border-t border-gray-100 outline-none">
                             {{ incomeDrafts[getDraftKey(inc)].showDetails ? '隱藏明細 ▲' : '編輯加減項與出勤 ▼' }}
                         </button>
                         <div v-if="incomeDrafts[getDraftKey(inc)].showDetails" class="p-2 space-y-2">
                             <div class="flex items-center justify-between bg-yellow-50 p-1.5 rounded">
                                 <span class="text-xs font-bold text-yellow-700">出勤天數：</span>
-                                <div class="flex items-center gap-1">
-                                    <input type="number" v-model.number="incomeDrafts[getDraftKey(inc)].workingDays" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold outline-none">天
-                                </div>
+                                <div class="flex items-center gap-1"><input type="number" v-model.number="incomeDrafts[getDraftKey(inc)].workingDays" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold outline-none">天</div>
                             </div>
                             <div class="text-[11px]">
                                 <div class="flex justify-between text-gray-500"><span>本薪</span><span>$ {{ formatNumber(inc.baseSalary) }}</span></div>
-                                <div v-for="a in (inc.fixedAllowances||[])" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
-                                <div v-for="d in (inc.fixedDeductions||[])" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
+                                <div v-for="a in (inc.fixedAllowances||[])" :key="a.name" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
+                                <div v-for="d in (inc.fixedDeductions||[])" :key="d.name" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
                             </div>
                             <div class="border-t pt-2">
-                                <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded">+新增</button></div>
-                                <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" class="flex gap-1 mb-1 items-center">
+                                <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded outline-none">+新增</button></div>
+                                <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" :key="'ta'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="ta.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="ta.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempAllowances, idx)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempAllowances, idx)" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
-                                <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded">+新增</button></div>
-                                <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" class="flex gap-1 mb-1 items-center">
+                                <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded outline-none">+新增</button></div>
+                                <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" :key="'td'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="td.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="td.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempDeductions, idx)" class="text-red-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempDeductions, idx)" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 2. 支出 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
-                <button v-if="!isHistoricalView" @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded">+ 單筆繳費</button>
-            </div>
-            <div v-if="ledgerOtherExpenses.length === 0" class="text-center text-xs text-gray-400 py-2">無紀錄</div>
-            <div v-for="exp in ledgerOtherExpenses" :key="exp.recordId" class="flex justify-between items-center mb-3 last:mb-0 p-2 rounded" :class="exp.isPaid ? 'bg-gray-50 opacity-70' : ''">
-                <div class="flex-1 min-w-0 pr-2">
-                    <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
-                        <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: exp.color }"></span> 
-                        <span class="truncate">{{ exp.name }}</span>
-                        <span v-if="exp.type==='fixed'" class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded shrink-0">固定</span>
-                        <span v-if="exp.type==='adhoc'" class="text-[9px] bg-orange-100 text-orange-600 px-1 rounded shrink-0">單筆</span>
-                    </div>
-                    <div class="text-[11px] text-gray-500 mt-0.5">預估: $ {{ formatNumber(exp.expectedAmount) }}</div>
+            <!-- Ledger: 支出區塊 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
+                    <button v-if="!isHistoricalView" @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded hover:bg-orange-100">+ 單筆繳費</button>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <div v-if="exp.isPaid" class="text-right">
-                        <div class="text-sm font-bold text-gray-600">$ {{ formatNumber(exp.actualAmount) }}</div>
-                        <div class="text-[9px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded mt-0.5">{{ getPaymentMethodName(exp.paymentMethod) }}</div>
-                    </div>
-                    <button v-if="!exp.isPaid" @click="openRecordModal('other_expense', exp)" class="px-3 py-1 bg-orange-500 text-white rounded text-xs font-bold">繳費</button>
-                    <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteRecord('expense_adhoc', exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
-                    <button v-if="exp.isPaid" @click="cancelRecord('other_expense', exp.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. 卡費與貸款 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">3. 信用卡與貸款</h2>
-                <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">+ 記刷卡</button>
-            </div>
-            
-            <div v-if="ledgerCardBills.length === 0 && ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">無待繳項目 🎉</div>
-            
-            <!-- 卡費 -->
-            <div v-for="bill in ledgerCardBills" :key="bill.id" class="mb-4 last:mb-0 border border-gray-200 rounded-lg overflow-hidden" :class="bill.isPaid ? 'opacity-70' : ''">
-                <div class="p-2.5 flex justify-between items-center" :class="bill.isPaid ? 'bg-gray-100' : 'bg-purple-50'">
+                <div v-if="ledgerOtherExpenses.length === 0" class="text-center text-xs text-gray-400 py-2">無紀錄</div>
+                
+                <div v-for="exp in ledgerOtherExpenses" :key="exp.recordId" class="flex justify-between items-center mb-3 last:mb-0 p-2 rounded" :class="exp.isPaid ? 'bg-gray-50 opacity-70' : ''">
                     <div class="flex-1 min-w-0 pr-2">
-                        <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
-                            <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: bill.color }"></span>
-                            <i class="fa-regular fa-credit-card text-purple-600 shrink-0"></i> <span class="truncate">{{ bill.name }}</span>
+                        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
+                            <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: exp.color }"></span> 
+                            <span class="truncate">{{ exp.name }}</span>
+                            <span v-if="exp.type==='fixed'" class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded shrink-0">固定</span>
+                            <span v-if="exp.type==='adhoc'" class="text-[9px] bg-orange-100 text-orange-600 px-1 rounded shrink-0">單筆</span>
                         </div>
-                        <div class="text-[10px] text-gray-500 mt-0.5">當期總計: $ {{ formatNumber(bill.expectedAmount) }} <span class="block sm:inline">(結:{{bill.statementDate}}號/繳:{{bill.dueDate}}號)</span></div>
+                        <div class="text-[11px] text-gray-500 mt-0.5">預估: $ {{ formatNumber(exp.expectedAmount) }}</div>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
-                        <div v-if="bill.isPaid" class="text-right text-sm font-bold text-gray-600">已繳 $ {{ formatNumber(bill.actualAmount) }}</div>
-                        <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold">付卡費</button>
-                        <button v-else @click="cancelRecord('card', bill.recordId)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-rotate-left"></i></button>
+                        <div v-if="exp.isPaid" class="text-right">
+                            <div class="text-sm font-bold text-gray-600">$ {{ formatNumber(exp.actualAmount) }}</div>
+                            <div class="text-[9px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded mt-0.5">{{ getPaymentMethodName(exp.paymentMethod) }}</div>
+                        </div>
+                        <button v-if="!exp.isPaid" @click="openRecordModal('other_expense', exp)" class="px-3 py-1 bg-orange-500 text-white rounded text-xs font-bold shadow-sm">繳費</button>
+                        <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteRecord('expense_adhoc', exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
+                        <button v-if="exp.isPaid" @click="cancelRecord('other_expense', exp.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
-                <div class="bg-white">
-                    <button @click="toggleCardUI(bill.id)" class="w-full text-center text-[11px] py-1 text-gray-500 hover:bg-gray-50 border-t outline-none">
-                        {{ uiState.cardDetails[bill.id] ? '隱藏明細 ▲' : '查看明細 ▼' }}
-                    </button>
-                    <div v-if="uiState.cardDetails[bill.id]" class="p-2 border-t bg-gray-50/50 space-y-2">
-                        <div v-if="bill.details.installments.length > 0">
-                            <div class="text-[9px] font-bold text-gray-400 mb-0.5">分期扣款</div>
-                            <div v-for="(inst, idx) in bill.details.installments" class="flex justify-between text-[11px] text-gray-700">
-                                <span>{{ inst.name }} <span class="text-[9px] text-gray-400">({{ inst.period }}/{{ inst.totalPeriods }})</span></span><span>$ {{ formatNumber(inst.amount) }}</span>
+            </div>
+
+            <!-- Ledger: 卡費與貸款區塊 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">3. 信用卡與貸款</h2>
+                    <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">+ 記刷卡</button>
+                </div>
+                
+                <div v-if="ledgerCardBills.length === 0 && ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">本月無待繳項目 🎉</div>
+                
+                <div v-for="bill in ledgerCardBills" :key="bill.id" class="mb-4 last:mb-0 border border-gray-200 rounded-lg overflow-hidden" :class="bill.isPaid ? 'opacity-70' : ''">
+                    <div class="p-2.5 flex justify-between items-center" :class="bill.isPaid ? 'bg-gray-100' : 'bg-purple-50'">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
+                                <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: bill.color }"></span>
+                                <i class="fa-regular fa-credit-card text-purple-600 shrink-0"></i> <span class="truncate">{{ bill.name }}</span>
                             </div>
+                            <div class="text-[10px] text-gray-500 mt-0.5">當期總計: $ {{ formatNumber(bill.expectedAmount) }} <span class="block sm:inline">(結:{{bill.statementDate}}號/繳:{{bill.dueDate}}號)</span></div>
                         </div>
-                        <div v-if="bill.details.transactions.length > 0">
-                            <div class="text-[9px] font-bold text-gray-400 mb-0.5 mt-2">單筆與折抵</div>
-                            <div v-for="txn in bill.details.transactions" class="flex justify-between items-center text-[11px] mb-1 bg-white p-1 border rounded">
-                                <div>
-                                    <span class="block" :class="txn.amount < 0 ? 'text-green-600 font-bold' : 'text-gray-800'">{{ txn.name }}</span>
-                                    <span class="block text-[8px] text-gray-400">{{ formatDateTimeDisplay(txn.datetime) }}</span>
-                                </div>
-                                <div class="flex items-center gap-1">
-                                    <span class="font-medium" :class="txn.amount < 0 ? 'text-green-600' : ''">$ {{ formatNumber(txn.amount) }}</span>
-                                    <button v-if="!isHistoricalView && !bill.isPaid" @click="deleteRecord('txn', txn.id)" class="text-gray-300 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div v-if="bill.isPaid" class="text-right text-sm font-bold text-gray-600">已繳 $ {{ formatNumber(bill.actualAmount) }}</div>
+                            <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold shadow-sm">付卡費</button>
+                            <button v-else @click="cancelRecord('card', bill.recordId)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-rotate-left"></i></button>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- 貸款 -->
-            <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
-                <div class="flex-1 pr-2 min-w-0">
-                    <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
-                        <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: loan.color }"></span>
-                        <i class="fa-solid fa-building-columns text-blue-600 shrink-0"></i> <span class="truncate">{{ loan.name }}</span>
-                    </div>
-                    <div class="text-[11px] text-gray-500 mt-1 leading-tight">
-                        {{ loan.currentDate }} (第 {{ loan.currentPeriod }}/{{ loan.totalPeriods }} 期)<br>
-                        本: $ {{ formatNumber(loan.principal) }} | 息: $ {{ formatNumber(loan.interest) }}
-                        <div v-if="loan.earlyAmt > 0 || loan.penalty > 0" class="text-red-500 font-bold mt-0.5">含提前/違約金: $ {{ formatNumber(loan.earlyAmt + loan.penalty) }}</div>
-                    </div>
-                </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                    <div class="text-base font-bold text-blue-800">$ {{ formatNumber(loan.expectedAmount) }}</div>
-                    <button v-if="!loan.isPaid" @click="openRecordModal('loan', loan)" class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold shadow-sm">繳款</button>
-                    <button v-else @click="cancelRecord('loan', loan.recordId)" class="text-[10px] text-red-400 border border-red-200 px-1.5 py-0.5 rounded">撤銷</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== 頁籤 2：設定 & 貸款 ==================== -->
-    <div v-show="activeTab === 'settings'" class="p-4 space-y-4 no-print">
-        
-        <!-- 薪資設定 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-400">
-            <div class="flex justify-between items-center mb-2 border-b pb-2">
-                <h2 class="font-bold text-gray-700">收入與常態薪資</h2>
-                <button @click="addIncome" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 新增</button>
-            </div>
-            <div id="incomes-list" class="space-y-3">
-                <div v-for="(income, index) in incomes" :key="income.id" class="border rounded-lg p-2 bg-gray-50">
-                    <div class="flex items-center gap-2 mb-2 bg-white p-1 rounded">
-                        <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
-                        <input v-model="income.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none" placeholder="輸入薪資名稱">
-                        <button @click="deleteItemConfirm(incomes, index)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
-                    </div>
-                    <div class="text-xs text-gray-600 mb-2 px-1">固定本薪: <input type="number" v-model.number="income.baseSalary" class="border rounded px-1 w-24 outline-none"></div>
-                    <button @click="income.showDetails = !income.showDetails" class="text-[11px] text-blue-600 w-full text-center border border-blue-100 bg-blue-50 py-1 rounded outline-none">
-                        {{ income.showDetails ? '隱藏常態加減項 ▲' : '設定常態加減項 ▼' }}
-                    </button>
-                    <div v-if="income.showDetails" class="mt-2 pt-2 border-t">
-                        <div class="text-[9px] text-gray-400 mb-1">💡 僅設定「每個月固定」發生的項目。</div>
-                        <div class="mb-2">
-                            <span class="text-[11px] font-bold text-blue-600 mr-2">常態加項</span><button @click="addIncomeSettingItem(income, 'fixedAllowances')" class="text-[9px] bg-blue-100 px-1 rounded">+ 新增</button>
-                            <div v-for="(al, idx) in income.fixedAllowances" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="al.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="al.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="al.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedAllowances, idx)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
-                        </div>
-                        <div>
-                            <span class="text-[11px] font-bold text-red-600 mr-2">常態減項</span><button @click="addIncomeSettingItem(income, 'fixedDeductions')" class="text-[9px] bg-red-100 px-1 rounded">+ 新增</button>
-                            <div v-for="(de, idx) in income.fixedDeductions" class="flex gap-1 mt-1 bg-white p-1 rounded"><input v-model="de.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="de.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="de.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedDeductions, idx)" class="text-red-400 text-xs px-1 shrink-0">✕</button></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 固定支出 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
-            <div class="flex justify-between items-center mb-2 border-b pb-2">
-                <h2 class="font-bold text-gray-700">常態生活支出</h2>
-                <button @click="addFixedExpense" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded">+ 新增</button>
-            </div>
-            <div id="fixed-expenses-list" class="space-y-2">
-                <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded">
-                    <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
-                    <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                    <input v-model="exp.name" placeholder="名稱 (如:房租)" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
-                    <input type="number" v-model.number="exp.amount" placeholder="$" class="w-20 shrink-0 border rounded px-2 py-1 text-sm text-right outline-none">
-                    <button @click="deleteItemConfirm(fixedExpenses, index)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 信用卡 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-400">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">信用卡管理 (含自訂明細)</h2>
-                <button @click="addCard" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded">+ 新增卡片</button>
-            </div>
-            <div id="cards-list" class="space-y-4">
-                <div v-for="(card, cardIdx) in cards" :key="card.id" class="border border-gray-200 rounded-lg p-2 bg-gray-50 shadow-sm">
-                    <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
-                        <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
-                        <input type="color" v-model="card.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                        <input v-model="card.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none text-purple-800" placeholder="卡片名稱">
-                        <button @click="deleteItemConfirm(cards, cardIdx)" class="text-red-400 text-xs p-1 shrink-0"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                    <div class="flex gap-2 text-[10px] text-gray-600 mb-3 bg-white p-1.5 rounded border border-gray-200">
-                        <div class="flex items-center gap-1 flex-1">出帳日:每<input type="number" v-model.number="card.statementDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
-                        <div class="flex items-center gap-1 flex-1">截止日:每<input type="number" v-model.number="card.dueDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
-                    </div>
-
-                    <div v-for="(item, itemIdx) in card.installments" :key="item.id" class="bg-white border border-purple-100 rounded p-2 mb-2 relative shadow-sm">
-                        <button @click="deleteItemConfirm(card.installments, itemIdx)" class="absolute top-1 right-2 text-red-300"><i class="fa-solid fa-xmark"></i></button>
-                        <input v-model="item.name" placeholder="分期項目" class="w-3/4 border-b text-[11px] font-bold text-purple-700 mb-1 outline-none">
-                        <div class="flex gap-1 text-[10px] mb-1">
-                            <div class="w-1/3">總額 <input type="number" v-model.number="item.totalAmount" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
-                            <div class="w-1/4">期數 <input type="number" v-model.number="item.periods" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
-                            <div class="w-1/3">利率(%) <input type="number" v-model.number="item.interestRate" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
-                        </div>
-                        <div class="text-[10px] bg-purple-50 p-1 rounded mb-2">起算: <input type="number" v-model.number="item.startYear" @change="generateCardSchedule(item)" class="w-10 border rounded text-center outline-none">年 <input type="number" v-model.number="item.startMonth" @change="generateCardSchedule(item)" class="w-6 border rounded text-center outline-none">月</div>
-                        
-                        <button @click="item.showSchedule = !item.showSchedule" class="w-full text-center text-[10px] py-1 text-blue-600 border border-blue-100 rounded bg-blue-50 outline-none">
-                            {{ item.showSchedule ? '隱藏明細 ▲' : '自訂細部本金/利息 ▼' }}
+                    <div class="bg-white">
+                        <button @click="toggleCardUI(bill.id)" class="w-full text-center text-[11px] py-1 text-gray-500 hover:bg-gray-50 border-t outline-none">
+                            {{ uiState.cardDetails[bill.id] ? '隱藏明細 ▲' : '查看明細 ▼' }}
                         </button>
-                        <div v-if="item.showSchedule" class="mt-1 border rounded overflow-hidden">
-                            <div class="max-h-48 overflow-y-auto bg-white">
+                        <div v-if="uiState.cardDetails[bill.id]" class="p-2 border-t bg-gray-50/50 space-y-2">
+                            <div v-if="bill.details.installments.length > 0">
+                                <div class="text-[9px] font-bold text-gray-400 mb-0.5">分期扣款</div>
+                                <div v-for="(inst, idx) in bill.details.installments" :key="'b_inst'+idx" class="flex justify-between text-[11px] text-gray-700">
+                                    <span>{{ inst.name }} <span class="text-[9px] text-gray-400">({{ inst.period }}/{{ inst.totalPeriods }})</span></span><span>$ {{ formatNumber(inst.amount) }}</span>
+                                </div>
+                            </div>
+                            <div v-if="bill.details.transactions.length > 0">
+                                <div class="text-[9px] font-bold text-gray-400 mb-0.5 mt-2">單筆與折抵</div>
+                                <div v-for="txn in bill.details.transactions" :key="'b_txn'+txn.id" class="flex justify-between items-center text-[11px] mb-1 bg-white p-1 border rounded">
+                                    <div>
+                                        <span class="block" :class="txn.amount < 0 ? 'text-green-600 font-bold' : 'text-gray-800'">{{ txn.name }}</span>
+                                        <span class="block text-[8px] text-gray-400">{{ formatDateTimeDisplay(txn.datetime) }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <span class="font-medium" :class="txn.amount < 0 ? 'text-green-600' : ''">$ {{ formatNumber(txn.amount) }}</span>
+                                        <button v-if="!isHistoricalView && !bill.isPaid" @click="deleteRecord('txn', txn.id)" class="text-gray-300 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
+                    <div class="flex-1 pr-2 min-w-0">
+                        <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
+                            <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: loan.color }"></span>
+                            <i class="fa-solid fa-building-columns text-blue-600 shrink-0"></i> <span class="truncate">{{ loan.name }}</span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 mt-1 leading-tight">
+                            {{ loan.currentDate }} (第 {{ loan.currentPeriod }}/{{ loan.totalPeriods }} 期)<br>
+                            本: $ {{ formatNumber(loan.principal) }} | 息: $ {{ formatNumber(loan.interest) }}
+                            <div v-if="loan.earlyAmt > 0 || loan.penalty > 0" class="text-red-500 font-bold mt-0.5">含提前/違約金: $ {{ formatNumber(loan.earlyAmt + loan.penalty) }}</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                        <div class="text-base font-bold text-blue-800">$ {{ formatNumber(loan.expectedAmount) }}</div>
+                        <button v-if="!loan.isPaid" @click="openRecordModal('loan', loan)" class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold shadow-sm">繳款</button>
+                        <button v-else @click="cancelRecord('loan', loan.recordId)" class="text-[10px] text-red-400 border border-red-200 px-1.5 py-0.5 rounded">撤銷</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2：設定與貸款 ==================== -->
+        <div v-show="activeTab === 'settings'" class="p-4 space-y-4 no-print">
+            
+            <!-- 薪資設定 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-400">
+                <div class="flex justify-between items-center mb-2 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">收入與常態薪資</h2>
+                    <button @click="addIncome" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded outline-none">+ 新增</button>
+                </div>
+                <div id="incomes-list" class="space-y-3">
+                    <div v-for="(income, index) in incomes" :key="income.id" class="border rounded-lg p-2 bg-gray-50">
+                        <div class="flex items-center gap-2 mb-2 bg-white p-1 rounded">
+                            <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
+                            <input v-model="income.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none" placeholder="輸入名稱">
+                            <button @click="deleteItemConfirm(incomes, index)" class="text-red-400 p-1 shrink-0 outline-none"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-2 px-1">固定本薪: <input type="number" v-model.number="income.baseSalary" class="border rounded px-1 w-24 outline-none"></div>
+                        <button @click="income.showDetails = !income.showDetails" class="text-[11px] text-blue-600 w-full text-center border border-blue-100 bg-blue-50 py-1 rounded outline-none">
+                            {{ income.showDetails ? '隱藏常態加減項 ▲' : '設定常態加減項 ▼' }}
+                        </button>
+                        <div v-if="income.showDetails" class="mt-2 pt-2 border-t">
+                            <div class="text-[9px] text-gray-400 mb-1">💡 僅設定「每月固定」發生的項目。</div>
+                            <div class="mb-2">
+                                <span class="text-[11px] font-bold text-blue-600 mr-2">常態加項</span><button @click="addIncomeSettingItem(income, 'fixedAllowances')" class="text-[9px] bg-blue-100 px-1 rounded outline-none">+ 新增</button>
+                                <div v-for="(al, idx) in income.fixedAllowances" :key="'fal'+idx" class="flex gap-1 mt-1 bg-white p-1 rounded">
+                                    <input v-model="al.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="al.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="al.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedAllowances, idx)" class="text-red-400 text-xs px-1 shrink-0 outline-none">✕</button>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-[11px] font-bold text-red-600 mr-2">常態減項</span><button @click="addIncomeSettingItem(income, 'fixedDeductions')" class="text-[9px] bg-red-100 px-1 rounded outline-none">+ 新增</button>
+                                <div v-for="(de, idx) in income.fixedDeductions" :key="'fde'+idx" class="flex gap-1 mt-1 bg-white p-1 rounded">
+                                    <input v-model="de.name" placeholder="名稱" class="w-1/3 text-[11px] border rounded px-1 outline-none"><select v-model="de.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select><input type="number" v-model.number="de.amount" placeholder="$" class="flex-1 min-w-0 text-[11px] border rounded px-1 outline-none"><button @click="deleteItemConfirm(income.fixedDeductions, idx)" class="text-red-400 text-xs px-1 shrink-0 outline-none">✕</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 固定支出設定 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
+                <div class="flex justify-between items-center mb-2 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">常態生活支出</h2>
+                    <button @click="addFixedExpense" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded outline-none">+ 新增</button>
+                </div>
+                <div id="fixed-expenses-list" class="space-y-2">
+                    <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded">
+                        <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
+                        <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer outline-none">
+                        <input v-model="exp.name" placeholder="名稱" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
+                        <input type="number" v-model.number="exp.amount" placeholder="$" class="w-20 shrink-0 border rounded px-2 py-1 text-sm text-right outline-none">
+                        <button @click="deleteItemConfirm(fixedExpenses, index)" class="text-red-400 p-1 shrink-0 outline-none"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 信用卡設定 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-400">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">信用卡管理 (含自訂明細)</h2>
+                    <button @click="addCard" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded outline-none">+ 新增卡片</button>
+                </div>
+                <div id="cards-list" class="space-y-4">
+                    <div v-for="(card, cardIdx) in cards" :key="card.id" class="border border-gray-200 rounded-lg p-2 bg-gray-50 shadow-sm">
+                        <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
+                            <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
+                            <input type="color" v-model="card.color" class="w-6 h-6 shrink-0 cursor-pointer outline-none">
+                            <input v-model="card.name" class="font-bold bg-transparent border-b text-sm flex-1 min-w-0 outline-none text-purple-800" placeholder="卡片名稱">
+                            <button @click="deleteItemConfirm(cards, cardIdx)" class="text-red-400 text-xs p-1 shrink-0 outline-none"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <div class="flex gap-2 text-[10px] text-gray-600 mb-3 bg-white p-1.5 rounded border border-gray-200">
+                            <div class="flex items-center gap-1 flex-1">出帳日:每<input type="number" v-model.number="card.statementDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
+                            <div class="flex items-center gap-1 flex-1">截止日:每<input type="number" v-model.number="card.dueDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
+                        </div>
+
+                        <div v-for="(item, itemIdx) in card.installments" :key="item.id" class="bg-white border border-purple-100 rounded p-2 mb-2 relative shadow-sm">
+                            <button @click="deleteItemConfirm(card.installments, itemIdx)" class="absolute top-1 right-2 text-red-300 outline-none"><i class="fa-solid fa-xmark"></i></button>
+                            <input v-model="item.name" placeholder="分期項目" class="w-3/4 border-b text-[11px] font-bold text-purple-700 mb-1 outline-none">
+                            <div class="flex gap-1 text-[10px] mb-1">
+                                <div class="w-1/3">總額 <input type="number" v-model.number="item.totalAmount" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                                <div class="w-1/4">期數 <input type="number" v-model.number="item.periods" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                                <div class="w-1/3">利率(%) <input type="number" v-model.number="item.interestRate" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
+                            </div>
+                            <div class="text-[10px] bg-purple-50 p-1 rounded mb-2">起算: <input type="number" v-model.number="item.startYear" @change="generateCardSchedule(item)" class="w-10 border rounded text-center outline-none">年 <input type="number" v-model.number="item.startMonth" @change="generateCardSchedule(item)" class="w-6 border rounded text-center outline-none">月</div>
+                            
+                            <button @click="item.showSchedule = !item.showSchedule" class="w-full text-center text-[10px] py-1 text-blue-600 border border-blue-100 rounded bg-blue-50 outline-none">
+                                {{ item.showSchedule ? '隱藏明細 ▲' : '自訂細部本金/利息 ▼' }}
+                            </button>
+                            <div v-if="item.showSchedule" class="mt-1 border rounded overflow-hidden">
+                                <div class="max-h-48 overflow-y-auto bg-white">
+                                    <table class="w-full text-center text-[9px]">
+                                        <thead class="bg-gray-100 sticky top-0 text-gray-600"><tr><th class="py-1">期/年月</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-purple-600">總繳</th><th class="py-1">✏️</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="(sch, sIdx) in item.schedule" :key="sch.period" class="border-b" :class="sch.isEdited ? 'bg-yellow-50' : ''">
+                                                <td class="py-1 text-gray-500">{{sch.period}}期<br>{{sch.dueDate}}</td>
+                                                <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                                <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                                <td class="py-1 font-bold text-purple-600">$ {{formatNumber(sch.total)}}</td>
+                                                <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <button @click="generateCardSchedule(item)" class="w-full py-1 bg-red-50 text-red-500 text-[9px] font-bold border-t outline-none">🔄 清除自訂並重算</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="addInstallment(cardIdx)" class="w-full border border-dashed rounded text-[11px] text-gray-500 py-1 hover:bg-gray-100 outline-none">+ 新增分期</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 貸款設定 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="font-bold text-gray-700">貸款與攤還設定</h2>
+                    <button @click="addLoan" class="text-blue-600 text-[11px] font-bold bg-blue-50 px-2 py-1 rounded outline-none">+ 新增貸款</button>
+                </div>
+                <div id="loans-list" class="space-y-4">
+                    <div v-for="(loan, loanIdx) in loans" :key="loan.id" class="border border-gray-200 rounded-lg p-2.5 bg-gray-50 shadow-sm">
+                        <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
+                            <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
+                            <input type="color" v-model="loan.color" class="w-6 h-6 shrink-0 cursor-pointer outline-none">
+                            <input v-model="loan.name" class="font-bold bg-transparent border-b border-blue-300 text-sm flex-1 min-w-0 outline-none text-blue-800" placeholder="貸款名稱">
+                            <button @click="deleteItemConfirm(loans, loanIdx)" class="text-red-400 p-1 shrink-0 outline-none"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                            <div><label class="text-gray-500">貸款總額</label><input type="number" v-model.number="loan.totalAmount" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                            <div><label class="text-gray-500">年利率 (%)</label><input type="number" v-model.number="loan.annualRate" @change="generateLoanSchedule(loan)" step="0.01" class="w-full border rounded px-1.5 py-1 text-blue-700 font-bold outline-none"></div>
+                            <div><label class="text-gray-500">總期數 (月)</label><input type="number" v-model.number="loan.periods" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                            <div><label class="text-gray-500">寬限期 (只繳息)</label><input type="number" v-model.number="loan.gracePeriod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
+                        </div>
+
+                        <div class="mb-2 text-[10px]">
+                            <select v-model="loan.repaymentMethod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 bg-white outline-none">
+                                <option value="equal_installment">本息平均攤還 (每月繳款固定)</option>
+                                <option value="equal_principal">本金平均攤還 (每月本金固定，利息遞減)</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-1 text-[10px] bg-blue-50 p-1.5 rounded mb-2 border border-blue-100">
+                            <span class="text-blue-700 font-bold">首次繳款</span>
+                            <input type="number" v-model.number="loan.startYear" @change="generateLoanSchedule(loan)" class="w-10 border rounded text-center py-0.5 outline-none">年
+                            <input type="number" v-model.number="loan.startMonth" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">月
+                            <input type="number" v-model.number="loan.dueDate" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">日
+                        </div>
+
+                        <div class="border border-orange-200 rounded p-1.5 bg-orange-50 mb-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] font-bold text-orange-700">⚡ 提前清償設定</span>
+                                <button @click="addEarlyRepayment(loan)" class="bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] outline-none">+ 新增</button>
+                            </div>
+                            <div v-for="(er, erIdx) in loan.earlyRepayments" :key="'er'+erIdx" class="flex items-center gap-1 mt-1 bg-white p-1 rounded border border-orange-100">
+                                <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期</span>
+                                <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="多還本金">
+                                <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
+                                <button @click="deleteItemConfirm(loan.earlyRepayments, erIdx); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark text-xs"></i></button>
+                            </div>
+                        </div>
+
+                        <button @click="loan.showSchedule = !loan.showSchedule" class="w-full text-center text-[10px] py-1.5 text-blue-600 bg-white border border-blue-200 rounded font-bold outline-none">
+                            {{ loan.showSchedule ? '隱藏攤還明細表 ▲' : '自訂細部本金/利息 ▼' }}
+                        </button>
+                        <div v-if="loan.showSchedule" class="mt-2 border rounded overflow-hidden">
+                            <div class="max-h-60 overflow-y-auto bg-white">
                                 <table class="w-full text-center text-[9px]">
-                                    <thead class="bg-gray-100 sticky top-0 text-gray-600"><tr><th class="py-1">期/年月</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-purple-600">總繳</th><th class="py-1">✏️</th></tr></thead>
+                                    <thead class="bg-blue-50 sticky top-0 text-blue-800">
+                                        <tr><th class="py-1">期/日期</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-blue-600">總繳</th><th class="py-1">✏️</th></tr>
+                                    </thead>
                                     <tbody>
-                                        <tr v-for="(sch, sIdx) in item.schedule" :key="sch.period" class="border-b" :class="sch.isEdited ? 'bg-yellow-50' : ''">
-                                            <td class="py-1 text-gray-500">{{sch.period}}期<br>{{sch.dueDate}}</td>
-                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(item, sIdx, 'card')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                            <td class="py-1 font-bold text-purple-600">$ {{formatNumber(sch.total)}}</td>
+                                        <tr v-for="(sch, sIdx) in loan.schedule" :key="sch.period" class="border-b" :class="(sch.earlyAmt > 0) ? 'bg-orange-50' : (sch.isEdited ? 'bg-yellow-50' : '')">
+                                            <td class="py-1 text-gray-500">第{{sch.period}}期<br>{{sch.dueDate}}</td>
+                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none" :class="sch.earlyAmt>0?'border-orange-300':''"></td>
+                                            <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none"></td>
+                                            <td class="py-1 font-bold text-blue-600">$ {{formatNumber(sch.totalToPay)}}<div v-if="sch.earlyAmt>0" class="text-[8px] text-orange-600 mt-0.5">含提前</div></td>
                                             <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
                                         </tr>
                                     </tbody>
                                 </table>
-                                <button @click="generateCardSchedule(item)" class="w-full py-1 bg-red-50 text-red-500 text-[9px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
+                                <button @click="generateLoanSchedule(loan)" class="w-full py-1.5 bg-red-50 text-red-500 text-[10px] font-bold border-t outline-none">🔄 清除自訂並重算</button>
                             </div>
                         </div>
                     </div>
-                    <button @click="addInstallment(cardIdx)" class="w-full border border-dashed rounded text-[11px] text-gray-500 py-1 hover:bg-gray-100 outline-none">+ 新增分期</button>
                 </div>
             </div>
         </div>
 
-        <!-- 貸款 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
-            <div class="flex justify-between items-center mb-3 border-b pb-2">
-                <h2 class="font-bold text-gray-700">貸款與攤還設定</h2>
-                <button @click="addLoan" class="text-blue-600 text-[11px] font-bold bg-blue-50 px-2 py-1 rounded">+ 新增貸款</button>
-            </div>
-            <div id="loans-list" class="space-y-4">
-                <div v-for="(loan, loanIdx) in loans" :key="loan.id" class="border border-gray-200 rounded-lg p-2.5 bg-gray-50 shadow-sm">
-                    <div class="flex items-center gap-2 mb-2 bg-white p-1.5 rounded border border-gray-100">
-                        <i class="fa-solid fa-bars drag-handle text-gray-400 ml-1"></i>
-                        <input type="color" v-model="loan.color" class="w-6 h-6 shrink-0 cursor-pointer">
-                        <input v-model="loan.name" class="font-bold bg-transparent border-b border-blue-300 text-sm flex-1 min-w-0 outline-none text-blue-800" placeholder="貸款名稱">
-                        <button @click="deleteItemConfirm(loans, loanIdx)" class="text-red-400 p-1 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 text-[10px] mb-2">
-                        <div><label class="text-gray-500">貸款總額</label><input type="number" v-model.number="loan.totalAmount" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                        <div><label class="text-gray-500">年利率 (%)</label><input type="number" v-model.number="loan.annualRate" @change="generateLoanSchedule(loan)" step="0.01" class="w-full border rounded px-1.5 py-1 text-blue-700 font-bold outline-none"></div>
-                        <div><label class="text-gray-500">總期數 (月)</label><input type="number" v-model.number="loan.periods" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                        <div><label class="text-gray-500">寬限期 (只繳息)</label><input type="number" v-model.number="loan.gracePeriod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 outline-none"></div>
-                    </div>
-
-                    <div class="mb-2 text-[10px]">
-                        <select v-model="loan.repaymentMethod" @change="generateLoanSchedule(loan)" class="w-full border rounded px-1.5 py-1 bg-white outline-none">
-                            <option value="equal_installment">本息平均攤還 (每月繳款固定)</option>
-                            <option value="equal_principal">本金平均攤還 (每月本金固定，利息遞減)</option>
-                        </select>
-                    </div>
-
-                    <div class="flex items-center gap-1 text-[10px] bg-blue-50 p-1.5 rounded mb-2 border border-blue-100">
-                        <span class="text-blue-700 font-bold">首次繳款</span>
-                        <input type="number" v-model.number="loan.startYear" @change="generateLoanSchedule(loan)" class="w-10 border rounded text-center py-0.5 outline-none">年
-                        <input type="number" v-model.number="loan.startMonth" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">月
-                        <input type="number" v-model.number="loan.dueDate" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">日
-                    </div>
-
-                    <div class="border border-orange-200 rounded p-1.5 bg-orange-50 mb-2">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[10px] font-bold text-orange-700">⚡ 提前清償設定</span>
-                            <button @click="addEarlyRepayment(loan)" class="bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] outline-none">+ 新增</button>
-                        </div>
-                        <div v-for="(er, erIdx) in loan.earlyRepayments" :key="erIdx" class="flex items-center gap-1 mt-1 bg-white p-1 rounded border border-orange-100">
-                            <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期</span>
-                            <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="多還本金">
-                            <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
-                            <button @click="deleteItemConfirm(loan.earlyRepayments, erIdx); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark text-xs"></i></button>
-                        </div>
-                    </div>
-
-                    <button @click="loan.showSchedule = !loan.showSchedule" class="w-full text-center text-[10px] py-1.5 text-blue-600 bg-white border border-blue-200 rounded font-bold outline-none">
-                        {{ loan.showSchedule ? '隱藏明細表 ▲' : '自訂細部本金/利息 ▼' }}
-                    </button>
-                    <div v-if="loan.showSchedule" class="mt-2 border rounded overflow-hidden">
-                        <div class="max-h-60 overflow-y-auto bg-white">
-                            <table class="w-full text-center text-[9px]">
-                                <thead class="bg-blue-50 sticky top-0 text-blue-800">
-                                    <tr><th class="py-1">期/日期</th><th class="py-1">本金</th><th class="py-1">利息</th><th class="py-1 text-blue-600">總繳</th><th class="py-1">✏️</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(sch, sIdx) in loan.schedule" :key="sch.period" class="border-b" :class="(sch.earlyAmt > 0) ? 'bg-orange-50' : (sch.isEdited ? 'bg-yellow-50' : '')">
-                                        <td class="py-1 text-gray-500">第{{sch.period}}期<br>{{sch.dueDate}}</td>
-                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.principal" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none" :class="sch.earlyAmt>0?'border-orange-300':''"></td>
-                                        <td class="py-1 px-0.5"><input type="number" v-model.number="sch.interest" @change="applyManualEdit(loan, sIdx, 'loan')" class="w-full text-center border rounded py-0.5 outline-none"></td>
-                                        <td class="py-1 font-bold text-blue-600">$ {{formatNumber(sch.totalToPay)}}<div v-if="sch.earlyAmt>0" class="text-[8px] text-orange-600 mt-0.5">含提前</div></td>
-                                        <td class="py-1"><i v-if="sch.isEdited" class="fa-solid fa-pencil text-yellow-500"></i></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <button @click="generateLoanSchedule(loan)" class="w-full py-1.5 bg-red-50 text-red-500 text-[10px] font-bold border-t outline-none">🔄 清除自訂並重新計算</button>
-                        </div>
-                    </div>
+        <!-- ==================== TAB 3：統計報表 ==================== -->
+        <div v-show="activeTab === 'charts'" class="p-4 space-y-5 no-print">
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <h2 class="font-bold text-gray-700 mb-2 text-sm"><i class="fa-solid fa-filter text-gray-400 mr-1"></i> 圖表顯示設定</h2>
+                <div class="flex flex-wrap gap-3 text-xs">
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showFixed" @change="updateCharts"> 生活支出</label>
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showCards" @change="updateCharts"> 信用卡</label>
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showLoans" @change="updateCharts"> 貸款</label>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- ==================== 頁籤 3：統計報表 ==================== -->
-    <div v-show="activeTab === 'charts'" class="p-4 space-y-5 no-print">
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-            <h2 class="font-bold text-gray-700 mb-2 text-sm"><i class="fa-solid fa-filter text-gray-400 mr-1"></i> 圖表顯示設定</h2>
-            <div class="flex flex-wrap gap-3 text-xs">
-                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showFixed" @change="updateCharts"> 生活支出</label>
-                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showCards" @change="updateCharts"> 信用卡</label>
-                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" v-model="chartFilters.showLoans" @change="updateCharts"> 貸款</label>
+            <div class="bg-white rounded-xl shadow-sm p-4 print-border">
+                <h2 class="font-bold text-gray-700 mb-2 border-b pb-2 flex items-center text-sm"><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i> 本月應繳支出分佈</h2>
+                <div v-show="hasChartData" class="relative w-full aspect-square max-w-[280px] mx-auto"><canvas id="expensePieChart"></canvas></div>
+                <div v-show="!hasChartData" class="text-center text-sm text-gray-400 py-10">依設定無資料</div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 print-border">
+                <h2 class="font-bold text-gray-700 mb-2 border-b pb-2 flex items-center text-sm"><i class="fa-solid fa-chart-line text-purple-500 mr-2"></i> 貸款負債消除趨勢 (未來24個月)</h2>
+                <div v-show="loans.length > 0 && chartFilters.showLoans" class="relative w-full aspect-video"><canvas id="liabilityLineChart"></canvas></div>
+                <div v-show="!(loans.length > 0 && chartFilters.showLoans)" class="text-center text-sm text-gray-400 py-10">請開啟貸款顯示</div>
             </div>
         </div>
+    </div> <!-- END no-print wrapper -->
 
-        <div class="bg-white rounded-xl shadow-sm p-4 print-border">
-            <h2 class="font-bold text-gray-700 mb-2 border-b pb-2 flex items-center text-sm"><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i> 本月應繳支出分佈</h2>
-            <div v-show="hasChartData" class="relative w-full aspect-square max-w-[280px] mx-auto"><canvas id="expensePieChart"></canvas></div>
-            <div v-show="!hasChartData" class="text-center text-sm text-gray-400 py-10">依目前設定無資料</div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-sm p-4 print-border">
-            <h2 class="font-bold text-gray-700 mb-2 border-b pb-2 flex items-center text-sm"><i class="fa-solid fa-chart-line text-purple-500 mr-2"></i> 貸款負債消除趨勢 (未來24個月)</h2>
-            <div v-show="loans.length > 0 && chartFilters.showLoans" class="relative w-full aspect-video"><canvas id="liabilityLineChart"></canvas></div>
-            <div v-show="!(loans.length > 0 && chartFilters.showLoans)" class="text-center text-sm text-gray-400 py-10">請開啟貸款顯示</div>
-        </div>
-    </div>
-
-    <!-- ==================== 彈出視窗群 ==================== -->
+    <!-- ==================== 彈出視窗群 (置於外層) ==================== -->
     
-    <!-- PDF 報表設定 -->
     <div v-if="pdfModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 border-b pb-2">選擇列印/匯出內容</h3>
             <div class="space-y-3 text-sm text-gray-700 mb-5 font-bold">
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showSummary" class="w-4 h-4"> 本月記帳摘要 (DTI與餘額)</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showIncome" class="w-4 h-4"> 收入清單</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showExpense" class="w-4 h-4"> 生活支出清單</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showCards" class="w-4 h-4"> 信用卡帳單明細</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="pdfConfig.showLoans" class="w-4 h-4"> 貸款攤還明細</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="pdfConfig.showSummary" class="w-4 h-4"> 本月記帳摘要 (DTI與餘額)</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="pdfConfig.showIncome" class="w-4 h-4"> 收入清單</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="pdfConfig.showExpense" class="w-4 h-4"> 生活支出清單</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="pdfConfig.showCards" class="w-4 h-4"> 信用卡帳單明細</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="pdfConfig.showLoans" class="w-4 h-4"> 貸款攤還明細</label>
             </div>
             <div class="flex gap-2">
-                <button @click="pdfModal.show = false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold text-gray-600">取消</button>
-                <button @click="executePDF" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold shadow-md"><i class="fa-solid fa-print mr-1"></i> 生成 PDF</button>
+                <button @click="pdfModal.show = false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold text-gray-600 outline-none">取消</button>
+                <button @click="executePDF" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold shadow-md outline-none"><i class="fa-solid fa-print mr-1"></i> 生成 PDF</button>
             </div>
         </div>
     </div>
 
-    <!-- 快速跳轉月份 -->
     <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-[280px] p-5">
-            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-lg"></i></button></div>
             <div class="flex items-center gap-2 mb-4">
-                <button @click="monthPicker.year--" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i class="fa-solid fa-minus"></i></button>
+                <button @click="monthPicker.year--" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-minus"></i></button>
                 <div class="flex-1 text-center font-bold text-lg">{{ monthPicker.year }} 年</div>
-                <button @click="monthPicker.year++" class="p-2 bg-gray-100 rounded hover:bg-gray-200"><i class="fa-solid fa-plus"></i></button>
+                <button @click="monthPicker.year++" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-plus"></i></button>
             </div>
             <div class="grid grid-cols-4 gap-2">
-                <button v-for="m in 12" :key="m" @click="selectMonth(m)" class="py-2 rounded font-bold transition" :class="(monthPicker.year===currentYear && m===currentMonth) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">{{ m }}月</button>
+                <button v-for="m in 12" :key="'m'+m" @click="selectMonth(m)" class="py-2 rounded font-bold transition outline-none" :class="(monthPicker.year===currentYear && m===currentMonth) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">{{ m }}月</button>
             </div>
-            <button @click="goToCurrentMonth" class="w-full mt-4 py-2 bg-blue-50 text-blue-600 font-bold rounded">回到本月</button>
+            <button @click="goToCurrentMonth" class="w-full mt-4 py-2 bg-blue-50 text-blue-600 font-bold rounded outline-none">回到本月 (解除歷史鎖定)</button>
         </div>
     </div>
 
-    <!-- Data Modal (備份/匯出) -->
     <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 flex justify-between items-center text-gray-800">
-                <span><i class="fa-solid fa-database text-blue-500 mr-2"></i> 備份與匯出</span><button @click="dataModal.show = false" class="text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <span><i class="fa-solid fa-database text-blue-500 mr-2"></i> 備份與匯出</span>
+                <button @click="dataModal.show = false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-xl"></i></button>
             </h3>
             <div class="space-y-3">
-                <button @click="shareBackupFile" class="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded-lg"><i class="fa-solid fa-share-nodes"></i> 儲存備份檔(JSON)</button>
-                <button @click="copyBackupText" class="w-full py-2 bg-gray-100 text-gray-700 font-bold rounded-lg"><i class="fa-regular fa-copy"></i> 複製代碼(純文字)</button>
+                <button @click="shareBackupFile" class="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded-lg outline-none"><i class="fa-solid fa-share-nodes"></i> 儲存備份檔(JSON)</button>
+                <button @click="copyBackupText" class="w-full py-2 bg-gray-100 text-gray-700 font-bold rounded-lg outline-none"><i class="fa-regular fa-copy"></i> 複製代碼(純文字)</button>
                 <div class="border-t my-2"></div>
-                <button @click="shareExcelFile" class="w-full py-2 bg-green-100 text-green-700 font-bold rounded-lg"><i class="fa-solid fa-file-excel"></i> 匯出本月 CSV</button>
-                <button @click="pdfModal.show=true; dataModal.show=false;" class="w-full py-2 bg-red-100 text-red-700 font-bold rounded-lg"><i class="fa-solid fa-file-pdf"></i> 自訂列印 PDF 報表</button>
+                <button @click="shareExcelFile" class="w-full py-2 bg-green-100 text-green-700 font-bold rounded-lg outline-none"><i class="fa-solid fa-file-excel"></i> 匯出本月 CSV</button>
+                <button @click="pdfModal.show=true; dataModal.show=false;" class="w-full py-2 bg-red-100 text-red-700 font-bold rounded-lg outline-none"><i class="fa-solid fa-file-pdf"></i> 自訂列印 PDF 報表</button>
             </div>
             <div class="mt-4 border-t pt-3">
                 <h4 class="text-xs font-bold text-gray-500 mb-2">匯入還原資料</h4>
                 <label class="w-full py-2 bg-purple-100 text-purple-700 font-bold rounded-lg flex items-center justify-center cursor-pointer mb-2">
                     <i class="fa-solid fa-upload mr-1"></i> 從檔案匯入 <input type="file" accept=".json" @change="importData" class="hidden">
                 </label>
-                <button @click="pasteImport" class="w-full py-2 border-2 border-purple-200 text-purple-700 font-bold rounded-lg"><i class="fa-solid fa-paste"></i> 貼上代碼匯入</button>
+                <button @click="pasteImport" class="w-full py-2 border-2 border-purple-200 text-purple-700 font-bold rounded-lg outline-none"><i class="fa-solid fa-paste"></i> 貼上代碼匯入</button>
             </div>
         </div>
     </div>
 
-    <!-- 入帳/繳款 確認 Modal -->
     <div v-if="modal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-1">{{ modal.type === 'income' ? '入帳' : '繳款' }}</h3>
@@ -629,15 +623,14 @@
                 <div class="flex gap-2 items-center">
                     <input type="number" v-model.number="modal.rewardAmount" placeholder="$" class="w-1/3 border rounded px-2 py-1 outline-none">
                     <span class="text-gray-500">抵</span>
-                    <input type="number" v-model.number="modal.rewardYear" class="w-12 border rounded text-center py-1 outline-none"> 年
-                    <input type="number" v-model.number="modal.rewardMonth" class="w-8 border rounded text-center py-1 outline-none"> 月
+                    <input type="number" v-model.number="modal.rewardYear" class="w-12 border rounded text-center py-1 outline-none">年
+                    <input type="number" v-model.number="modal.rewardMonth" class="w-8 border rounded text-center py-1 outline-none">月
                 </div>
             </div>
-            <div class="flex gap-2"><button @click="modal.show=false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold">取消</button><button @click="saveRecord" class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md">確認</button></div>
+            <div class="flex gap-2"><button @click="modal.show=false" class="flex-1 py-2 bg-gray-100 rounded-lg font-bold outline-none">取消</button><button @click="saveRecord" class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md outline-none">確認</button></div>
         </div>
     </div>
 
-    <!-- 單筆收入 Modal -->
     <div v-if="adhocIncModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-3 text-green-700">新增單筆收入</h3>
@@ -645,11 +638,10 @@
                 <input type="text" v-model="adhocIncModal.name" placeholder="項目 (如:發票中獎)" class="w-full border-2 border-gray-300 rounded px-3 py-2 outline-none focus:border-green-500">
                 <input type="number" v-model.number="adhocIncModal.amount" placeholder="$ 金額" class="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold outline-none focus:border-green-500">
             </div>
-            <div class="flex gap-2 mt-4"><button @click="adhocIncModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold">取消</button><button @click="saveAdhocIncome" class="flex-1 py-2 bg-green-500 text-white font-bold rounded shadow-md">加入</button></div>
+            <div class="flex gap-2 mt-4"><button @click="adhocIncModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold outline-none">取消</button><button @click="saveAdhocIncome" class="flex-1 py-2 bg-green-500 text-white font-bold rounded shadow-md outline-none">加入</button></div>
         </div>
     </div>
 
-    <!-- 單筆支出 Modal -->
     <div v-if="adhocModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-3 text-orange-600">新增單筆支出</h3>
@@ -657,22 +649,22 @@
                 <input type="text" v-model="adhocModal.name" placeholder="項目 (如:水費)" class="w-full border-2 border-gray-300 rounded px-3 py-2 outline-none focus:border-orange-500">
                 <input type="number" v-model.number="adhocModal.amount" placeholder="$ 金額" class="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold outline-none focus:border-orange-500">
             </div>
-            <div class="flex gap-2 mt-4"><button @click="adhocModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold">取消</button><button @click="saveAdhocExpense" class="flex-1 py-2 bg-orange-500 text-white font-bold rounded shadow-md">加入</button></div>
+            <div class="flex gap-2 mt-4"><button @click="adhocModal.show=false" class="flex-1 py-2 bg-gray-100 rounded font-bold outline-none">取消</button><button @click="saveAdhocExpense" class="flex-1 py-2 bg-orange-500 text-white font-bold rounded shadow-md outline-none">加入</button></div>
         </div>
     </div>
 
-    <!-- Txn Modal -->
     <div v-if="txnModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div class="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-sm p-5">
-            <div class="flex justify-between mb-3 border-b pb-2"><h3 class="text-lg font-bold text-purple-700">記一筆刷卡</h3><button @click="txnModal.show=false" class="text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+            <div class="flex justify-between mb-3 border-b pb-2"><h3 class="text-lg font-bold text-purple-700">記一筆刷卡</h3><button @click="txnModal.show=false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-xl"></i></button></div>
             <div class="space-y-3">
                 <select v-model="txnModal.cardId" class="w-full border rounded px-3 py-2 text-sm font-bold bg-purple-50 text-purple-700 outline-none"><option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option></select>
                 <div class="flex gap-2"><input type="text" v-model="txnModal.name" placeholder="買什麼？" class="w-2/3 border-2 rounded px-3 py-1.5 text-sm outline-none focus:border-purple-400"><input type="number" v-model.number="txnModal.amount" placeholder="$" class="w-1/3 border-2 rounded px-3 py-1.5 text-sm font-bold text-red-600 outline-none focus:border-purple-400"></div>
                 <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none"></div>
             </div>
-            <button @click="saveTransaction" class="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition">加入卡費</button>
+            <button @click="saveTransaction" class="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition outline-none">加入卡費</button>
         </div>
     </div>
+
 </div>
 
 <script>
@@ -692,7 +684,7 @@
                 
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
-                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }],
+                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
                 cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }],
                 loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 300000, annualRate: 2.5, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 15, earlyRepayments: [], schedule: [], showSchedule: false }],
                 
@@ -778,24 +770,10 @@
             },
             monthlyStats() {
                 let totalExpectedDue = 0, unpaidDue = 0, actPaid = 0, estInc = 0, actRec = 0;
-                
-                this.ledgerCardBills.forEach(b => { 
-                    let amt = Number(b.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!b.isPaid) unpaidDue += amt; else actPaid += Number(b.actualAmount) || 0; 
-                });
-                this.ledgerLoans.forEach(l => { 
-                    let amt = Number(l.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!l.isPaid) unpaidDue += amt; else actPaid += Number(l.actualAmount) || 0; 
-                });
-                this.ledgerOtherExpenses.forEach(e => { 
-                    let amt = Number(e.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!e.isPaid) unpaidDue += amt; else if(e.paymentMethod==='cash'||e.paymentMethod==='transfer') actPaid += Number(e.actualAmount) || 0; 
-                });
-                this.ledgerIncomes.forEach(i => { 
-                    let amt = Number(i.expectedAmount) || 0; estInc += amt; 
-                    if(i.isReceived) actRec += Number(i.actualAmount) || 0; 
-                });
-                
+                this.ledgerCardBills.forEach(b => { let amt = Number(b.expectedAmount)||0; totalExpectedDue+=amt; if(!b.isPaid) unpaidDue+=amt; else actPaid+=(Number(b.actualAmount)||0); });
+                this.ledgerLoans.forEach(l => { let amt = Number(l.expectedAmount)||0; totalExpectedDue+=amt; if(!l.isPaid) unpaidDue+=amt; else actPaid+=(Number(l.actualAmount)||0); });
+                this.ledgerOtherExpenses.forEach(e => { let amt = Number(e.expectedAmount)||0; totalExpectedDue+=amt; if(!e.isPaid) unpaidDue+=amt; else if(e.paymentMethod==='cash'||e.paymentMethod==='transfer') actPaid+=(Number(e.actualAmount)||0); });
+                this.ledgerIncomes.forEach(i => { estInc += Number(i.expectedAmount)||0; if(i.isReceived) actRec += Number(i.actualAmount)||0; });
                 let dti = estInc > 0 ? (totalExpectedDue / estInc) * 100 : 0;
                 return { expectedIncome: estInc, totalExpectedDue: totalExpectedDue, unpaidDue: unpaidDue, actualPaid: actPaid, actualReceived: actRec, actualBalance: actRec - actPaid, dti: dti };
             }
@@ -883,7 +861,6 @@
             },
             isIncomeReceived(inc) { return !!this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`] || !!this.records[`income_adhoc_${inc.sourceId}`]; },
             getIncomeActual(inc) { return (this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`]?.amount || this.records[`income_adhoc_${inc.sourceId}`]?.amount || 0); },
-            addTempIncomeItem(inc, field) { let draft = this.incomeDrafts[this.getDraftKey(inc)]; if(!draft[field]) draft[field] = []; draft[field].push({ name:'', type:'fixed', amount:'' }); },
 
             // --- Modals & Records ---
             openRecordModal(type, data) {
@@ -915,7 +892,7 @@
                 this.adhocIncomes.push({ id: 'adhocinc_'+Date.now(), year: this.currentYear, month: this.currentMonth, name: this.adhocIncModal.name, amount: Number(this.adhocIncModal.amount) });
                 this.adhocIncModal.show = false; this.adhocIncModal.name = ''; this.adhocIncModal.amount = '';
             },
-            deleteRecord(type, id) { if(confirm("確定刪除？")) { if(type==='income_adhoc') { this.adhocIncomes = this.adhocIncomes.filter(a => a.id !== id); delete this.records[`income_adhoc_${id}`]; } else if (type==='expense_adhoc') { this.adhocExpenses = this.adhocExpenses.filter(a => a.id !== id); delete this.records[`expense_adhoc_${id}`]; } else if (type==='txn') { this.transactions = this.transactions.filter(t => t.id !== id); } } },
+            deleteRecord(type, id) { if(confirm("確定刪除？刪除後無法復原。")) { if(type==='income_adhoc') { this.adhocIncomes = this.adhocIncomes.filter(a => a.id !== id); delete this.records[`income_adhoc_${id}`]; } else if (type==='expense_adhoc') { this.adhocExpenses = this.adhocExpenses.filter(a => a.id !== id); delete this.records[`expense_adhoc_${id}`]; } else if (type==='txn') { this.transactions = this.transactions.filter(t => t.id !== id); } } },
             saveAdhocExpense() {
                 if(!this.adhocModal.name || !this.adhocModal.amount) return alert("請填寫");
                 this.adhocExpenses.push({ id: 'adhoc_'+Date.now(), year: this.currentYear, month: this.currentMonth, name: this.adhocModal.name, amount: Number(this.adhocModal.amount) });
@@ -931,11 +908,9 @@
 
             // --- Settings CRUD & Override Engine ---
             addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
-            removeIncome(index) { if(confirm("確定刪除這筆薪資設定？")) this.incomes.splice(index, 1); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
             addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); this.$nextTick(() => { this.initSortable(); }); },
             addCard() { this.cards.push({ id: 'card_'+Date.now(), name: '', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }); this.$nextTick(() => { this.initSortable(); }); },
-            removeCard(index) { if(confirm('刪除卡片？')) this.cards.splice(index, 1); },
             addInstallment(cardIdx) {
                 const item = { id: 'inst_'+Date.now(), name: '', totalAmount: 0, periods: 12, interestRate: 0, startYear: this.currentYear, startMonth: this.currentMonth, showSchedule: false, schedule: [] };
                 if(!this.cards[cardIdx].installments) this.cards[cardIdx].installments = [];
@@ -1001,9 +976,9 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v16', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v17', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v16') || localStorage.getItem('cashflow_v15');
+                let saved = localStorage.getItem('cashflow_v17') || localStorage.getItem('cashflow_v16');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
