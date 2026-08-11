@@ -16,23 +16,27 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入拖曳排序套件 -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <style>
         /* 螢幕顯示專用 */
         @media screen { .print-only { display: none !important; } }
-        /* 列印 PDF 專用排版 */
+        /* 📊 專業級 PDF 列印排版 */
         @media print {
             .no-print { display: none !important; }
-            body { background: white !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000; margin: 0; padding: 0; }
+            body { background: white !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; margin: 0; padding: 0; }
             #app { box-shadow: none !important; background: transparent !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
             .print-only { display: block !important; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f3f4f6; font-weight: bold; }
-            .pdf-header { font-size: 24px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
-            .pdf-section-title { font-size: 16px; font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #333; }
+            .pdf-title { text-align: center; font-size: 26px; font-weight: bold; margin-bottom: 20px; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 15px; }
+            .pdf-subtitle { font-size: 16px; font-weight: bold; color: #2563eb; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #3b82f6; padding-left: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+            th { background-color: #f1f5f9; font-weight: bold; color: #334155; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .pdf-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+            .pdf-card { border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; text-align: center; background: #f8fafc; }
+            .pdf-card-title { font-size: 11px; color: #64748b; margin-bottom: 5px; font-weight: bold; }
+            .pdf-card-value { font-size: 18px; font-weight: bold; color: #0f172a; }
         }
         .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: bold; }
         .tab-inactive { color: #6b7280; font-weight: 500; }
@@ -46,100 +50,110 @@
     </style>
 
     <script>
-        const manifest = {
-            name: "CashFlow", short_name: "CashFlow", start_url: ".", display: "standalone",
-            background_color: "#f9fafb", theme_color: "#3b82f6",
-            icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }]
-        };
+        const manifest = { name: "CashFlow", short_name: "CashFlow", start_url: ".", display: "standalone", background_color: "#f9fafb", theme_color: "#3b82f6", icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }] };
         document.write(`<link rel="manifest" href="${URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type: 'application/json'}))}">`);
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans antialiased">
 
-<div id="app" class="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-xl overflow-x-hidden relative">
+<div id="app" class="min-h-screen max-w-md mx-auto bg-gray-50 shadow-xl overflow-x-hidden relative flex flex-col">
     
-    <!-- ==================== PDF 隱藏列印區 ==================== -->
+    <!-- ==================== 🖨️ PDF 隱藏列印區 ==================== -->
     <div class="print-only p-8">
-        <div class="pdf-header">CashFlow 財務報表 ({{ currentYear }}年{{ currentMonth }}月)</div>
+        <div class="pdf-title">CashFlow 財務報表 <span style="font-size: 16px; color: #64748b;">({{ currentYear }}年{{ currentMonth }}月)</span></div>
         
-        <div v-if="pdfConfig.showSummary" class="mb-6">
+        <div v-if="pdfConfig.showSummary" class="pdf-grid">
+            <div class="pdf-card"><div class="pdf-card-title">總預估收入</div><div class="pdf-card-value">$ {{ formatNumber(monthlyStats.expectedIncome) }}</div></div>
+            <div class="pdf-card"><div class="pdf-card-title">總預估支出</div><div class="pdf-card-value">$ {{ formatNumber(monthlyStats.totalExpectedDue) }}</div></div>
+            <div class="pdf-card"><div class="pdf-card-title">預估負債比</div><div class="pdf-card-value">{{ monthlyStats.dti.toFixed(1) }}%</div></div>
+            <div class="pdf-card"><div class="pdf-card-title">目前可用現金</div><div class="pdf-card-value text-blue-600">$ {{ formatNumber(monthlyStats.actualBalance) }}</div></div>
+        </div>
+
+        <div v-if="pdfConfig.showIncome && ledgerIncomes.length > 0">
+            <div class="pdf-subtitle">本月收入明細</div>
             <table>
-                <tr><th>總預估收入</th><th>總預估支出</th><th>預估負債比 (DTI)</th><th>目前可用現金</th></tr>
-                <tr>
-                    <td>$ {{ formatNumber(monthlyStats.expectedIncome) }}</td>
-                    <td>$ {{ formatNumber(monthlyStats.totalExpectedDue) }}</td>
-                    <td>{{ monthlyStats.dti.toFixed(1) }}%</td>
-                    <td style="font-weight: bold;">$ {{ formatNumber(monthlyStats.actualBalance) }}</td>
+                <tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr>
+                <tr v-for="inc in ledgerIncomes" :key="'p_inc_'+inc.recordId">
+                    <td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td>
                 </tr>
             </table>
         </div>
 
-        <div v-if="pdfConfig.showIncome && ledgerIncomes.length > 0">
-            <div class="pdf-section-title">收入明細</div>
-            <table>
-                <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr>
-                <tr v-for="inc in ledgerIncomes"><td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td></tr>
-            </table>
-        </div>
-
         <div v-if="pdfConfig.showExpense && ledgerOtherExpenses.length > 0">
-            <div class="pdf-section-title">生活支出與繳費</div>
+            <div class="pdf-subtitle">生活支出與繳費</div>
             <table>
-                <tr><th>項目</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr>
-                <tr v-for="exp in ledgerOtherExpenses"><td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳' : '未繳' }}</td></tr>
+                <tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr>
+                <tr v-for="exp in ledgerOtherExpenses" :key="'p_exp_'+exp.recordId">
+                    <td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳 ('+getPaymentMethodName(exp.paymentMethod)+')' : '未繳' }}</td>
+                </tr>
             </table>
         </div>
 
         <div v-if="pdfConfig.showCards && ledgerCardBills.length > 0">
-            <div class="pdf-section-title">信用卡帳單</div>
+            <div class="pdf-subtitle">信用卡帳單</div>
             <table>
-                <tr><th>信用卡名稱</th><th>當期總計</th><th>實際繳納</th><th>狀態</th></tr>
-                <tr v-for="bill in ledgerCardBills"><td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td></tr>
+                <tr><th>信用卡名稱</th><th>當期預估總計</th><th>實際繳納</th><th>狀態</th></tr>
+                <tr v-for="bill in ledgerCardBills" :key="'p_card_'+bill.id">
+                    <td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td>
+                </tr>
             </table>
         </div>
 
         <div v-if="pdfConfig.showLoans && ledgerLoans.length > 0">
-            <div class="pdf-section-title">貸款攤還</div>
+            <div class="pdf-subtitle">貸款攤還明細</div>
             <table>
                 <tr><th>貸款名稱</th><th>期數</th><th>本金 / 利息</th><th>應繳總額</th><th>實際繳納</th></tr>
-                <tr v-for="loan in ledgerLoans"><td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td></tr>
+                <tr v-for="loan in ledgerLoans" :key="'p_loan_'+loan.recordId">
+                    <td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td>
+                </tr>
             </table>
+        </div>
+        
+        <div v-if="pdfConfig.showSettings">
+            <div class="pdf-title" style="margin-top: 40px;">系統設定與參數備查</div>
+            <div v-if="incomes.length > 0">
+                <div class="pdf-subtitle">常態薪資設定</div>
+                <table><tr><th>薪資名稱</th><th>固定本薪</th><th>預估總額</th></tr><tr v-for="inc in incomes" :key="'ps_inc_'+inc.id"><td>{{ inc.name }}</td><td>$ {{ formatNumber(inc.baseSalary) }}</td><td>$ {{ formatNumber(calculateIncomeTotal(inc)) }}</td></tr></table>
+            </div>
+            <div v-if="loans.length > 0">
+                <div class="pdf-subtitle">貸款參數設定</div>
+                <table><tr><th>貸款名稱</th><th>總額</th><th>利率(%)</th><th>期數</th><th>還款方式</th></tr><tr v-for="l in loans" :key="'ps_loan_'+l.id"><td>{{ l.name }}</td><td>$ {{ formatNumber(l.totalAmount) }}</td><td>{{ l.annualRate }}%</td><td>{{ l.periods }}期</td><td>{{ l.repaymentMethod === 'equal_installment' ? '本息平均' : '本金平均' }}</td></tr></table>
+            </div>
         </div>
     </div>
 
-    <!-- ==================== 手機 UI 介面 ==================== -->
-    <div class="no-print">
-        <!-- 頂部導覽列 -->
+    <!-- ==================== 手機 UI 介面 (不列印) ==================== -->
+    <div class="no-print flex-grow pb-10">
+        
         <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative">
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
             </h1>
-            <button @click="dataModal.show = true" class="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-100 transition">
+            <button @click="dataModal.show = true" class="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-100 transition shadow-sm outline-none">
                 <i class="fa-solid fa-cloud-arrow-down mr-1"></i> 備份/匯出
             </button>
         </div>
 
-        <!-- 頁籤導覽 -->
         <div class="flex bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-            <button @click="activeTab = 'ledger'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
-            <button @click="activeTab = 'settings'" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
-            <button @click="switchTab('charts')" class="flex-1 py-3 text-xs sm:text-sm transition-colors" :class="activeTab === 'charts' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-chart-pie mr-1"></i> 報表</button>
+            <button @click="switchTab('ledger')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
+            <button @click="switchTab('settings')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
+            <button @click="switchTab('charts')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'charts' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-chart-pie mr-1"></i> 報表</button>
         </div>
 
-        <!-- ==================== 頁籤 1：本月記帳本 ==================== -->
+        <!-- ==================== TAB 1：本月記帳本 ==================== -->
         <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
-            <div class="flex justify-between items-center bg-white rounded-full p-1 shadow-sm">
-                <button @click="changeMonth(-1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-left"></i></button>
-                <div @click="monthPicker.show = true" class="font-bold text-lg text-gray-800 cursor-pointer hover:bg-gray-100 px-4 py-1 rounded-full transition flex items-center gap-2">
-                    {{ currentYear }} 年 {{ currentMonth }} 月 <i class="fa-solid fa-caret-down text-sm text-gray-400"></i>
-                </div>
-                <button @click="changeMonth(1)" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-chevron-right"></i></button>
+            <div class="flex justify-between items-center bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <button @click="changeMonth(-1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-r border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-left"></i></button>
+                <button @click="monthPicker.show = true" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
+                    {{ currentYear }} 年 {{ currentMonth }} 月 <i class="fa-solid fa-caret-down text-sm text-blue-400"></i>
+                </button>
+                <button @click="changeMonth(1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-l border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
             <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
                 <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
-                <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，修改設定不會影響此處。</div>
+                <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，修改【設定與貸款】不會影響此處的資料。</div>
             </div>
 
             <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
@@ -157,7 +171,7 @@
                     <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
                 </div>
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
-                    <div class="text-[11px] text-gray-500">預估財務健康度 (總預估支出 ÷ 總預估收入)</div>
+                    <div class="text-[11px] text-gray-500">預估財務健康度 (總支出 ÷ 總收入)</div>
                     <div class="flex items-center gap-2">
                         <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">{{ monthlyStats.dti.toFixed(1) }}%</span>
                         <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">{{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}</span>
@@ -165,11 +179,11 @@
                 </div>
             </div>
 
-            <!-- 1. 收入 -->
+            <!-- Ledger: 收入區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">1. 本月收入</h2>
-                    <button v-if="!isHistoricalView" @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded">+ 單筆收入</button>
+                    <button v-if="!isHistoricalView" @click="adhocIncModal.show = true" class="text-green-600 text-[11px] font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 outline-none">+ 單筆收入</button>
                 </div>
                 <div v-if="ledgerIncomes.length === 0" class="text-center text-xs text-gray-400 py-2">無收入紀錄</div>
                 
@@ -185,9 +199,9 @@
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <div v-if="inc.isReceived" class="text-right text-sm font-bold text-green-600">$ {{ formatNumber(inc.actualAmount) }}</div>
-                            <button v-if="!inc.isReceived" @click="openRecordModal('income', inc)" class="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200">入帳</button>
-                            <button v-if="inc.type === 'adhoc' && !inc.isReceived" @click="deleteRecord('income_adhoc', inc.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
-                            <button v-if="inc.isReceived" @click="cancelRecord('income', inc.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
+                            <button v-if="!inc.isReceived" @click="openRecordModal('income', inc)" class="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200 outline-none">入帳</button>
+                            <button v-if="inc.type === 'adhoc' && !inc.isReceived" @click="deleteRecord('income_adhoc', inc.sourceId)" class="text-gray-300 hover:text-red-500 p-1 outline-none"><i class="fa-solid fa-trash text-sm"></i></button>
+                            <button v-if="inc.isReceived" @click="cancelRecord('income', inc.recordId)" class="text-gray-300 hover:text-red-400 p-1 outline-none"><i class="fa-solid fa-rotate-left"></i></button>
                         </div>
                     </div>
                     
@@ -209,12 +223,12 @@
                                 <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded outline-none">+新增</button></div>
                                 <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" :key="'ta'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="ta.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="ta.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempAllowances', idx)" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempAllowances', idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                                 <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded outline-none">+新增</button></div>
                                 <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" :key="'td'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="td.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="td.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempDeductions', idx)" class="text-red-400 px-1 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempDeductions', idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -222,11 +236,11 @@
                 </div>
             </div>
 
-            <!-- 2. 支出 -->
+            <!-- Ledger: 支出區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
-                    <button v-if="!isHistoricalView" @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded hover:bg-orange-100">+ 單筆繳費</button>
+                    <button v-if="!isHistoricalView" @click="adhocModal.show = true" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 outline-none">+ 單筆繳費</button>
                 </div>
                 <div v-if="ledgerOtherExpenses.length === 0" class="text-center text-xs text-gray-400 py-2">無紀錄</div>
                 
@@ -245,23 +259,22 @@
                             <div class="text-sm font-bold text-gray-600">$ {{ formatNumber(exp.actualAmount) }}</div>
                             <div class="text-[9px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded mt-0.5">{{ getPaymentMethodName(exp.paymentMethod) }}</div>
                         </div>
-                        <button v-if="!exp.isPaid" @click="openRecordModal('other_expense', exp)" class="px-3 py-1 bg-orange-500 text-white rounded text-xs font-bold shadow-sm">繳費</button>
-                        <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteRecord('expense_adhoc', exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1"><i class="fa-solid fa-trash text-sm"></i></button>
-                        <button v-if="exp.isPaid" @click="cancelRecord('other_expense', exp.recordId)" class="text-gray-300 hover:text-red-400 p-1"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button v-if="!exp.isPaid" @click="openRecordModal('other_expense', exp)" class="px-3 py-1 bg-orange-500 text-white rounded text-xs font-bold shadow-sm outline-none">繳費</button>
+                        <button v-if="exp.type === 'adhoc' && !exp.isPaid" @click="deleteRecord('expense_adhoc', exp.sourceId)" class="text-gray-300 hover:text-red-500 p-1 outline-none"><i class="fa-solid fa-trash text-sm"></i></button>
+                        <button v-if="exp.isPaid" @click="cancelRecord('other_expense', exp.recordId)" class="text-gray-300 hover:text-red-400 p-1 outline-none"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
             </div>
 
-            <!-- 3. 卡費與貸款 -->
+            <!-- Ledger: 卡費與貸款區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">3. 信用卡與貸款</h2>
-                    <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">+ 記刷卡</button>
+                    <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100 outline-none">+ 記刷卡</button>
                 </div>
                 
                 <div v-if="ledgerCardBills.length === 0 && ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">無待繳項目 🎉</div>
                 
-                <!-- 卡費 -->
                 <div v-for="bill in ledgerCardBills" :key="bill.id" class="mb-4 last:mb-0 border border-gray-200 rounded-lg overflow-hidden" :class="bill.isPaid ? 'opacity-70' : ''">
                     <div class="p-2.5 flex justify-between items-center" :class="bill.isPaid ? 'bg-gray-100' : 'bg-purple-50'">
                         <div class="flex-1 min-w-0 pr-2">
@@ -273,8 +286,8 @@
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <div v-if="bill.isPaid" class="text-right text-sm font-bold text-gray-600">已繳 $ {{ formatNumber(bill.actualAmount) }}</div>
-                            <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold shadow-sm">付卡費</button>
-                            <button v-else @click="cancelRecord('card', bill.recordId)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-rotate-left"></i></button>
+                            <button v-if="!bill.isPaid" @click="openRecordModal('card', bill)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs font-bold shadow-sm outline-none">付卡費</button>
+                            <button v-else @click="cancelRecord('card', bill.recordId)" class="text-gray-400 hover:text-red-500 p-1 outline-none"><i class="fa-solid fa-rotate-left"></i></button>
                         </div>
                     </div>
                     <div class="bg-white">
@@ -297,7 +310,7 @@
                                     </div>
                                     <div class="flex items-center gap-1">
                                         <span class="font-medium" :class="txn.amount < 0 ? 'text-green-600' : ''">$ {{ formatNumber(txn.amount) }}</span>
-                                        <button v-if="!isHistoricalView && !bill.isPaid" @click="deleteRecord('txn', txn.id)" class="text-gray-300 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                                        <button v-if="!isHistoricalView && !bill.isPaid" @click="deleteRecord('txn', txn.id)" class="text-gray-300 hover:text-red-500 px-1 outline-none"><i class="fa-solid fa-xmark"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -305,7 +318,6 @@
                     </div>
                 </div>
 
-                <!-- 貸款 -->
                 <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
                     <div class="flex-1 pr-2 min-w-0">
                         <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
@@ -320,8 +332,8 @@
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                         <div class="text-base font-bold text-blue-800">$ {{ formatNumber(loan.expectedAmount) }}</div>
-                        <button v-if="!loan.isPaid" @click="openRecordModal('loan', loan)" class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold shadow-sm">繳款</button>
-                        <button v-else @click="cancelRecord('loan', loan.recordId)" class="text-[10px] text-red-400 border border-red-200 px-1.5 py-0.5 rounded">撤銷</button>
+                        <button v-if="!loan.isPaid" @click="openRecordModal('loan', loan)" class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold shadow-sm outline-none">繳款</button>
+                        <button v-else @click="cancelRecord('loan', loan.recordId)" class="text-[10px] text-red-400 border border-red-200 px-1.5 py-0.5 rounded outline-none">撤銷</button>
                     </div>
                 </div>
             </div>
@@ -352,6 +364,7 @@
                             {{ income.showDetails ? '隱藏常態加減項 ▲' : '設定常態加減項 ▼' }}
                         </button>
                         <div v-if="income.showDetails" class="mt-2 pt-2 border-t">
+                            <div class="text-[9px] text-gray-400 mb-1">💡 僅設定「每個月固定」發生的項目。</div>
                             <div class="mb-2">
                                 <span class="text-[11px] font-bold text-blue-600 mr-2">常態加項</span><button @click="addIncomeSettingItem(income, 'fixedAllowances')" class="text-[9px] bg-blue-100 px-1 rounded outline-none">+ 新增</button>
                                 <div v-for="(al, idx) in income.fixedAllowances" :key="'fal'+idx" class="flex gap-1 mt-1 bg-white p-1 rounded border border-gray-100">
@@ -376,10 +389,10 @@
                     <button @click="addFixedExpense" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded outline-none">+ 新增</button>
                 </div>
                 <div id="fixed-expenses-list" class="space-y-2">
-                    <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-200 p-1.5 rounded shadow-sm">
+                    <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded shadow-sm">
                         <i class="fa-solid fa-bars drag-handle text-gray-400"></i>
                         <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer outline-none">
-                        <input v-model="exp.name" placeholder="名稱" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
+                        <input v-model="exp.name" placeholder="名稱 (如:房租)" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
                         <input type="number" v-model.number="exp.amount" placeholder="$" class="w-20 shrink-0 border rounded px-2 py-1 text-sm text-right outline-none">
                         <button @click="deleteItemConfirm(fixedExpenses, index)" class="text-red-400 p-1 shrink-0 outline-none"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
@@ -389,7 +402,7 @@
             <!-- 信用卡設定 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h2 class="font-bold text-gray-700">信用卡管理</h2>
+                    <h2 class="font-bold text-gray-700">信用卡管理 (含自訂明細)</h2>
                     <button @click="addCard" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded outline-none">+ 新增卡片</button>
                 </div>
                 <div id="cards-list" class="space-y-4">
@@ -413,7 +426,7 @@
                                 <div class="w-[20%]">期數 <input type="number" v-model.number="item.periods" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
                                 <div class="w-[24%]">利率% <input type="number" v-model.number="item.interestRate" @change="generateCardSchedule(item)" class="w-full border rounded px-1 outline-none"></div>
                                 <div class="w-[28%]">
-                                    餘額
+                                    餘額併入
                                     <select v-model="item.remainderOption" @change="generateCardSchedule(item)" class="w-full border rounded px-1 py-[1.5px] outline-none bg-white">
                                         <option value="first">首期</option><option value="last">末期</option>
                                     </select>
@@ -558,6 +571,13 @@
                 <div v-show="!(loans.length > 0 && chartFilters.showLoans)" class="text-center text-sm text-gray-400 py-10">請開啟貸款顯示</div>
             </div>
         </div>
+        
+        <!-- 版權聲明頁腳 -->
+        <footer class="text-center text-[10px] text-gray-400 pt-6 pb-2 no-print border-t border-gray-200 mt-6 mx-4">
+            &copy; {{ realYear }} CashFlow 財務儀表板 - 個人理財專屬<br>
+            版權所有，請勿作為商業用途
+        </footer>
+
     </div> <!-- END no-print wrapper -->
 
     <!-- ==================== 彈出視窗群 ==================== -->
@@ -622,7 +642,7 @@
     <!-- 入帳/繳款 確認 Modal -->
     <div v-if="modal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4 no-print">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
-            <h3 class="text-lg font-bold mb-1">{{ modal.type === 'income' ? '入帳' : '繳款' }}</h3>
+            <h3 class="text-lg font-bold mb-1">{{ modal.type === 'income' ? '確認入帳' : '確認繳款' }}</h3>
             <p class="text-sm text-gray-500 mb-3">{{ modal.data.name }} (預估: $ {{ formatNumber(modal.data.expectedAmount) }})</p>
             <div class="mb-3">
                 <label class="block text-xs font-bold text-gray-500 mb-1">實際金額</label>
@@ -634,6 +654,9 @@
                     <option value="cash">現金/轉帳 (扣戶頭)</option>
                     <optgroup label="刷卡代繳 (併入卡費)"><option v-for="c in cards" :key="c.id" :value="'card_'+c.id">{{ c.name }}</option></optgroup>
                 </select>
+                <p v-if="modal.paymentMethod.startsWith('card_')" class="text-[10px] text-purple-600 mt-2 font-bold bg-purple-50 p-1.5 rounded">
+                    💡 系統將自動把這筆費用加到所選的信用卡帳單中。
+                </p>
             </div>
             <div v-if="modal.type === 'card'" class="mb-4 border border-purple-200 rounded p-2 bg-purple-50 text-xs">
                 <div class="flex justify-between items-center font-bold text-purple-700 mb-1">新增刷卡回饋折抵</div>
@@ -698,12 +721,12 @@
         data() {
             const now = new Date();
             return {
-                activeTab: 'ledger', currentYear: now.getFullYear(), currentMonth: now.getMonth() + 1,
+                activeTab: 'ledger', currentYear: now.getFullYear(), currentMonth: now.getMonth() + 1, realYear: REAL_YEAR,
                 chartFilters: { showFixed: true, showCards: true, showLoans: true },
                 
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
-                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }],
+                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
                 cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }],
                 loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 300000, annualRate: 2.5, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 15, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
                 
@@ -886,16 +909,11 @@
             isIncomeReceived(inc) { return !!this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`] || !!this.records[`income_adhoc_${inc.sourceId}`]; },
             getIncomeActual(inc) { return (this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`]?.amount || this.records[`income_adhoc_${inc.sourceId}`]?.amount || 0); },
             
-            // 🌟 修復臨時加減項響應式失效
+            // 🌟 修復臨時加減項
             addTempIncomeItem(inc, field) { 
                 let key = this.getDraftKey(inc);
                 if (!this.incomeDrafts[key][field]) this.incomeDrafts[key][field] = [];
-                this.incomeDrafts[key][field].push({ name:'', type:'fixed', amount:'' });
-            },
-            deleteDraftItem(inc, field, idx) {
-                if(confirm("確定刪除此臨時項目？")) {
-                    this.incomeDrafts[this.getDraftKey(inc)][field].splice(idx, 1);
-                }
+                this.incomeDrafts[key][field].push({ name:'', type:'fixed', amount:'' }); 
             },
 
             // --- Modals & Records ---
@@ -906,7 +924,7 @@
                 this.modal.rewardYear = ty; this.modal.rewardMonth = tm; this.modal.show = true;
             },
             saveRecord() {
-                const today = new Date(); const dStr = `${today.getMonth()+1}/${today.getDate()}`;
+                const today = new Date(); const dStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
                 let key = this.modal.data.recordId; 
                 if (this.modal.type === 'income') {
                     if (this.modal.data.type === 'fixed') {
@@ -942,7 +960,8 @@
                 this.txnModal.show = false;
             },
 
-            // --- Settings CRUD ---
+            // --- Settings CRUD & Override Engine ---
+            calculateIncomeTotal(inc) { return inc.baseSalary || 0; },
             addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
             addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); this.$nextTick(() => { this.initSortable(); }); },
@@ -960,16 +979,25 @@
                 let basePrin = Math.floor(p / n); let prinRem = p - (basePrin * n);
 
                 for (let i = 1; i <= n; i++) {
-                    let curD = new Date(sy, sm - 2 + i, 1); let y = curD.getFullYear(); let m = curD.getMonth() + 1;
-                    if (y < REAL_YEAR || (y === REAL_YEAR && m < REAL_MONTH)) { let oldRow = oldSch.find(s => s.period === i); if (oldRow) { item.schedule.push(oldRow); bal -= oldRow.principal; continue; } }
+                    let expectedMonth = sm - 1 + (i - 1);
+                    let y = sy + Math.floor(expectedMonth / 12);
+                    let m = (expectedMonth % 12) + 1;
+                    
+                    let oldRow = oldSch.find(s => s.period === i);
+                    let isEdited = false;
+                    
                     let int = Math.round(bal * mRate); let prin = 0;
                     if (rate === 0) { 
                         prin = basePrin; 
-                        if (remOption === 'first' && i === 1 && oldSch.length === 0) prin += prinRem;
+                        if (remOption === 'first' && i === 1) prin += prinRem;
                         if (remOption === 'last' && i === n) prin += prinRem;
                     } else { prin = Math.round((bal*mRate*Math.pow(1+mRate,n-i+1))/(Math.pow(1+mRate,n-i+1)-1)) - int; }
-                    if (prin > bal || i===n) prin = bal; bal -= prin; 
-                    item.schedule.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}`, principal: prin, interest: int, total: prin + int, balance: Math.max(0, bal), isEdited: false });
+                    if (prin > bal || i===n) prin = bal; 
+
+                    if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
+                    
+                    bal -= prin; 
+                    item.schedule.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}`, principal: prin, interest: int, total: prin + int, balance: Math.max(0, bal), isEdited: isEdited });
                 }
             },
             
@@ -981,8 +1009,13 @@
             generateLoanSchedule(loan) {
                 let p = Number(loan.totalAmount)||0; let n = Number(loan.periods)||1; let r = (Number(loan.annualRate)||0)/100/12;
                 let grace = Number(loan.gracePeriod)||0; let method = loan.repaymentMethod || 'equal_installment'; let remOpt = loan.remainderOption || 'last';
-                let sd = new Date(Number(loan.startYear)||this.currentYear, (Number(loan.startMonth)||this.currentMonth)-1, Number(loan.dueDate)||1);
+                
+                let sy = Number(loan.startYear)||this.currentYear;
+                let sm = Number(loan.startMonth)||this.currentMonth;
+                let sd = Number(loan.dueDate)||1;
+                
                 let oldSch = loan.schedule || []; let sch = []; let bal = p; let early = loan.earlyRepayments || [];
+                
                 let realN = n - grace; let basePrin = realN > 0 ? Math.floor(p / realN) : 0; let prinRem = p - (basePrin * realN);
                 let fixedPmt = 0; let firstExtra = 0;
 
@@ -996,8 +1029,12 @@
                 }
 
                 for (let i = 1; i <= n; i++) {
-                    let curD = new Date(sd); curD.setMonth(curD.getMonth() + (i - 1)); let y = curD.getFullYear(); let m = curD.getMonth() + 1;
-                    if (y < REAL_YEAR || (y === REAL_YEAR && m < REAL_MONTH)) { let oldRow = oldSch.find(s => s.period === i); if (oldRow) { sch.push(oldRow); bal = oldRow.balance; continue; } }
+                    let expectedMonth = sm - 1 + (i - 1);
+                    let y = sy + Math.floor(expectedMonth / 12);
+                    let m = (expectedMonth % 12) + 1;
+                    let lastDay = new Date(y, m, 0).getDate();
+                    let d = Math.min(sd, lastDay);
+                    
                     let isGrace = (i <= grace); let remN = n - i + 1; let int = Math.round(bal * r); let prin = 0;
                     if (!isGrace) { 
                         if (method === 'equal_principal' || r === 0) { 
@@ -1013,14 +1050,19 @@
                         } 
                     }
                     if (prin > bal || i === n) prin = bal;
+
+                    let oldRow = oldSch.find(s => s.period === i);
+                    let isEdited = false;
+                    if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
+
                     let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0;
                     if (match) { eAmt = Number(match.amount)||0; pen = Number(match.penalty)||0; if(eAmt > bal-prin) eAmt = bal-prin; }
                     bal -= (prin + eAmt); 
                     
-                    if (eAmt > 0 && i < n && method === 'equal_installment' && r > 0) {
+                    if (eAmt > 0 && i < n && method === 'equal_installment' && r > 0 && !isEdited) {
                         let newRemN = n - i; fixedPmt = Math.round((bal * r * Math.pow(1 + r, newRemN)) / (Math.pow(1 + r, newRemN) - 1));
                     }
-                    sch.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}/${String(curD.getDate()).padStart(2,'0')}`, principal: prin, interest: int, earlyAmt: eAmt, penalty: pen, totalToPay: prin + int + eAmt + pen, balance: Math.max(0, bal), isEdited: false });
+                    sch.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`, principal: prin, interest: int, earlyAmt: eAmt, penalty: pen, totalToPay: prin + int + eAmt + pen, balance: Math.max(0, bal), isEdited: isEdited });
                     if (bal <= 0) break;
                 }
                 loan.schedule = sch;
@@ -1046,9 +1088,9 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v20', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v21', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v20') || localStorage.getItem('cashflow_v19');
+                let saved = localStorage.getItem('cashflow_v21') || localStorage.getItem('cashflow_v20') || localStorage.getItem('cashflow_v19');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
