@@ -11,7 +11,6 @@
     <meta name="apple-mobile-web-app-title" content="CashFlow">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
     
-    <!-- 核心套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -19,9 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
     <style>
-        /* 螢幕顯示專用 */
         @media screen { .print-only { display: none !important; } }
-        /* 📊 專業級 PDF 列印排版 */
         @media print {
             .no-print { display: none !important; }
             body { background: white !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; margin: 0; padding: 0; }
@@ -58,74 +55,25 @@
 
 <div id="app" class="min-h-screen max-w-md mx-auto bg-gray-50 shadow-xl overflow-x-hidden relative flex flex-col">
     
-    <!-- ==================== 🖨️ PDF 隱藏列印區 ==================== -->
+    <!-- PDF 隱藏列印區 (防版面過長，維持邏輯) -->
     <div class="print-only p-8">
         <div class="pdf-title">CashFlow 財務報表 <span style="font-size: 16px; color: #64748b;">({{ currentYear }}年{{ currentMonth }}月)</span></div>
-        
         <div v-if="pdfConfig.showSummary" class="pdf-grid">
             <div class="pdf-card"><div class="pdf-card-title">總預估收入</div><div class="pdf-card-value">$ {{ formatNumber(monthlyStats.expectedIncome) }}</div></div>
             <div class="pdf-card"><div class="pdf-card-title">總預估支出</div><div class="pdf-card-value">$ {{ formatNumber(monthlyStats.totalExpectedDue) }}</div></div>
             <div class="pdf-card"><div class="pdf-card-title">預估負債比</div><div class="pdf-card-value">{{ monthlyStats.dti.toFixed(1) }}%</div></div>
             <div class="pdf-card"><div class="pdf-card-title">目前可用現金</div><div class="pdf-card-value text-blue-600">$ {{ formatNumber(monthlyStats.actualBalance) }}</div></div>
         </div>
-
-        <div v-if="pdfConfig.showIncome && ledgerIncomes.length > 0">
-            <div class="pdf-subtitle">本月收入明細</div>
-            <table>
-                <tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr>
-                <tr v-for="inc in ledgerIncomes" :key="'p_inc_'+inc.recordId">
-                    <td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div v-if="pdfConfig.showExpense && ledgerOtherExpenses.length > 0">
-            <div class="pdf-subtitle">生活支出與繳費</div>
-            <table>
-                <tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr>
-                <tr v-for="exp in ledgerOtherExpenses" :key="'p_exp_'+exp.recordId">
-                    <td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳 ('+getPaymentMethodName(exp.paymentMethod)+')' : '未繳' }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div v-if="pdfConfig.showCards && ledgerCardBills.length > 0">
-            <div class="pdf-subtitle">信用卡帳單</div>
-            <table>
-                <tr><th>信用卡名稱</th><th>當期預估總計</th><th>實際繳納</th><th>狀態</th></tr>
-                <tr v-for="bill in ledgerCardBills" :key="'p_card_'+bill.id">
-                    <td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div v-if="pdfConfig.showLoans && ledgerLoans.length > 0">
-            <div class="pdf-subtitle">貸款攤還明細</div>
-            <table>
-                <tr><th>貸款名稱</th><th>期數</th><th>本金 / 利息</th><th>應繳總額</th><th>實際繳納</th></tr>
-                <tr v-for="loan in ledgerLoans" :key="'p_loan_'+loan.recordId">
-                    <td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td>
-                </tr>
-            </table>
-        </div>
-        
-        <div v-if="pdfConfig.showSettings">
-            <div class="pdf-title" style="margin-top: 40px;">系統設定與參數備查</div>
-            <div v-if="incomes.length > 0">
-                <div class="pdf-subtitle">常態薪資設定</div>
-                <table><tr><th>薪資名稱</th><th>固定本薪</th><th>預估總額</th></tr><tr v-for="inc in incomes" :key="'ps_inc_'+inc.id"><td>{{ inc.name }}</td><td>$ {{ formatNumber(inc.baseSalary) }}</td><td>$ {{ formatNumber(calculateIncomeTotal(inc)) }}</td></tr></table>
-            </div>
-            <div v-if="loans.length > 0">
-                <div class="pdf-subtitle">貸款參數設定</div>
-                <table><tr><th>貸款名稱</th><th>總額</th><th>利率(%)</th><th>期數</th><th>還款方式</th></tr><tr v-for="l in loans" :key="'ps_loan_'+l.id"><td>{{ l.name }}</td><td>$ {{ formatNumber(l.totalAmount) }}</td><td>{{ l.annualRate }}%</td><td>{{ l.periods }}期</td><td>{{ l.repaymentMethod === 'equal_installment' ? '本息平均' : '本金平均' }}</td></tr></table>
-            </div>
-        </div>
+        <div v-if="pdfConfig.showIncome && ledgerIncomes.length > 0"><div class="pdf-subtitle">本月收入明細</div><table><tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際入帳</th></tr><tr v-for="inc in ledgerIncomes" :key="'p_inc_'+inc.recordId"><td>{{ inc.name }}</td><td>{{ inc.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(inc.expectedAmount) }}</td><td>$ {{ formatNumber(inc.actualAmount) }}</td></tr></table></div>
+        <div v-if="pdfConfig.showExpense && ledgerOtherExpenses.length > 0"><div class="pdf-subtitle">生活支出與繳費</div><table><tr><th>項目名稱</th><th>類型</th><th>預估金額</th><th>實際支出</th><th>狀態</th></tr><tr v-for="exp in ledgerOtherExpenses" :key="'p_exp_'+exp.recordId"><td>{{ exp.name }}</td><td>{{ exp.type==='fixed'?'常態':'單筆' }}</td><td>$ {{ formatNumber(exp.expectedAmount) }}</td><td>$ {{ formatNumber(exp.actualAmount) }}</td><td>{{ exp.isPaid ? '已繳 ('+getPaymentMethodName(exp.paymentMethod)+')' : '未繳' }}</td></tr></table></div>
+        <div v-if="pdfConfig.showCards && ledgerCardBills.length > 0"><div class="pdf-subtitle">信用卡帳單</div><table><tr><th>信用卡名稱</th><th>當期預估總計</th><th>實際繳納</th><th>狀態</th></tr><tr v-for="bill in ledgerCardBills" :key="'p_card_'+bill.id"><td>{{ bill.name }}</td><td>$ {{ formatNumber(bill.expectedAmount) }}</td><td>$ {{ formatNumber(bill.actualAmount) }}</td><td>{{ bill.isPaid ? '已繳' : '未繳' }}</td></tr></table></div>
+        <div v-if="pdfConfig.showLoans && ledgerLoans.length > 0"><div class="pdf-subtitle">貸款攤還明細</div><table><tr><th>貸款名稱</th><th>期數</th><th>本金 / 利息</th><th>應繳總額</th><th>實際繳納</th></tr><tr v-for="loan in ledgerLoans" :key="'p_loan_'+loan.recordId"><td>{{ loan.name }}</td><td>{{ loan.currentPeriod }}/{{ loan.totalPeriods }}</td><td>本: $ {{formatNumber(loan.principal)}} / 息: $ {{formatNumber(loan.interest)}}</td><td>$ {{ formatNumber(loan.expectedAmount) }}</td><td>$ {{ formatNumber(loan.actualAmount) }}</td></tr></table></div>
+        <div v-if="pdfConfig.showSettings"><div class="pdf-title" style="margin-top: 40px;">系統設定與參數備查</div><div v-if="incomes.length > 0"><div class="pdf-subtitle">常態薪資設定</div><table><tr><th>薪資名稱</th><th>固定本薪</th><th>預估總額</th></tr><tr v-for="inc in incomes" :key="'ps_inc_'+inc.id"><td>{{ inc.name }}</td><td>$ {{ formatNumber(inc.baseSalary) }}</td><td>$ {{ formatNumber(calculateIncomeTotal(inc)) }}</td></tr></table></div><div v-if="loans.length > 0"><div class="pdf-subtitle">貸款參數設定</div><table><tr><th>貸款名稱</th><th>總額</th><th>利率(%)</th><th>期數</th><th>還款方式</th></tr><tr v-for="l in loans" :key="'ps_loan_'+l.id"><td>{{ l.name }}</td><td>$ {{ formatNumber(l.totalAmount) }}</td><td>{{ l.annualRate }}%</td><td>{{ l.periods }}期</td><td>{{ l.repaymentMethod === 'equal_installment' ? '本息平均' : '本金平均' }}</td></tr></table></div></div>
     </div>
 
-    <!-- ==================== 手機 UI 介面 (不列印) ==================== -->
+    <!-- ==================== 手機 UI 介面 ==================== -->
     <div class="no-print flex-grow pb-10">
         
-        <!-- 頂部導覽與備份 -->
         <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative">
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
@@ -135,7 +83,6 @@
             </button>
         </div>
 
-        <!-- 頁籤導覽列 -->
         <div class="flex bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
             <button @click="switchTab('ledger')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
             <button @click="switchTab('settings')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
@@ -145,7 +92,6 @@
         <!-- ==================== TAB 1：本月記帳本 ==================== -->
         <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
-            <!-- 年月選擇器 -->
             <div class="flex justify-between items-center bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <button @click="changeMonth(-1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-r border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-left"></i></button>
                 <button @click="monthPicker.show = true" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
@@ -154,13 +100,11 @@
                 <button @click="changeMonth(1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-l border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
-            <!-- 歷史鎖定警示 -->
             <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
                 <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
                 <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處資料。</div>
             </div>
 
-            <!-- 儀表板卡片區 -->
             <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
                 <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣現金支出)</div>
                 <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
@@ -175,21 +119,16 @@
                     <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
                     <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
                 </div>
-                <!-- 預估財務健康度 -->
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
                     <div class="text-[11px] text-gray-500">預估財務健康度 (總預估支出 ÷ 總預估收入)</div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
-                            {{ monthlyStats.dti.toFixed(1) }}%
-                        </span>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
-                            {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
-                        </span>
+                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">{{ monthlyStats.dti.toFixed(1) }}%</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">{{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 1. 收入 -->
+            <!-- Ledger: 收入區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">1. 本月收入</h2>
@@ -233,12 +172,12 @@
                                 <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded outline-none">+新增</button></div>
                                 <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" :key="'ta'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="ta.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="ta.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempAllowances', idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="ta.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempAllowances, idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                                 <div class="text-[11px] font-bold text-red-500 mb-1 mt-2 flex justify-between">本月臨時減項 <button @click="addTempIncomeItem(inc, 'tempDeductions')" class="bg-red-100 px-1 rounded outline-none">+新增</button></div>
                                 <div v-for="(td, idx) in incomeDrafts[getDraftKey(inc)].tempDeductions" :key="'td'+idx" class="flex gap-1 mb-1 items-center">
                                     <input v-model="td.name" placeholder="項目" class="w-1/3 border rounded px-1 text-[11px] outline-none"><select v-model="td.type" class="w-1/4 border rounded text-[10px] outline-none"><option value="fixed">固定</option><option value="daily">按天</option></select>
-                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteDraftItem(inc, 'tempDeductions', idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
+                                    <input type="number" v-model.number="td.amount" placeholder="$" class="flex-1 min-w-0 border rounded px-1 text-[11px] text-right outline-none"><button @click="deleteItemConfirm(incomeDrafts[getDraftKey(inc)].tempDeductions, idx)" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -246,7 +185,7 @@
                 </div>
             </div>
 
-            <!-- 2. 支出區塊 -->
+            <!-- Ledger: 支出區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
@@ -276,14 +215,13 @@
                 </div>
             </div>
 
-            <!-- 3. 卡費區塊 -->
+            <!-- Ledger: 卡費與貸款區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">3. 信用卡帳單</h2>
                     <button v-if="!isHistoricalView" @click="openTxnModal()" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100 outline-none">+ 記刷卡</button>
                 </div>
-                
-                <div v-if="ledgerCardBills.length === 0" class="text-center text-xs text-gray-400 py-4">本月無待繳卡費 🎉</div>
+                <div v-if="ledgerCardBills.length === 0" class="text-center text-xs text-gray-400 py-4">無待繳項目 🎉</div>
                 
                 <div v-for="bill in ledgerCardBills" :key="bill.id" class="mb-4 last:mb-0 border border-gray-200 rounded-lg overflow-hidden" :class="bill.isPaid ? 'opacity-70' : ''">
                     <div class="p-2.5 flex justify-between items-center" :class="bill.isPaid ? 'bg-gray-100' : 'bg-purple-50'">
@@ -329,15 +267,14 @@
                 </div>
             </div>
 
-            <!-- 4. 貸款區塊 -->
-            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500 mt-4">
+            <!-- 本月貸款攤還 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">4. 本月貸款攤還</h2>
                 </div>
-                
-                <div v-if="ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">本月無待繳貸款 🎉</div>
+                <div v-if="ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">無待繳項目 🎉</div>
 
-                <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mb-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
+                <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
                     <div class="flex-1 pr-2 min-w-0">
                         <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
                             <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: loan.color }"></span>
@@ -363,7 +300,7 @@
             
             <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-[11px] shadow-inner font-medium flex items-start gap-2">
                 <i class="fa-solid fa-circle-info mt-0.5"></i> 
-                <div>在此修改設定不會影響過去已繳款的歷史紀錄。點擊左側 <i class="fa-solid fa-bars mx-0.5 text-gray-400"></i> 可以拖曳排序！</div>
+                <div>在此修改不會影響過去已繳款的歷史紀錄。點擊左側 <i class="fa-solid fa-bars mx-0.5 text-gray-400"></i> 可拖曳排序！</div>
             </div>
 
             <!-- 薪資設定 -->
@@ -409,7 +346,7 @@
                     <button @click="addFixedExpense" class="text-orange-600 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded outline-none">+ 新增</button>
                 </div>
                 <div id="fixed-expenses-list" class="space-y-2">
-                    <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-200 p-1.5 rounded shadow-sm">
+                    <div v-for="(exp, index) in fixedExpenses" :key="exp.id" class="flex gap-2 items-center bg-gray-50 border border-gray-100 p-1.5 rounded shadow-sm">
                         <i class="fa-solid fa-bars drag-handle text-gray-400"></i>
                         <input type="color" v-model="exp.color" class="w-6 h-6 shrink-0 cursor-pointer outline-none">
                         <input v-model="exp.name" placeholder="名稱 (如:房租)" class="flex-1 min-w-0 border rounded px-2 py-1 text-sm outline-none">
@@ -533,16 +470,26 @@
                             <input type="number" v-model.number="loan.dueDate" @change="generateLoanSchedule(loan)" class="w-6 border rounded text-center py-0.5 outline-none">日
                         </div>
 
+                        <!-- 🌟 提前清償設定 + 選項 -->
                         <div class="border border-orange-200 rounded p-1.5 bg-orange-50 mb-2">
                             <div class="flex justify-between items-center mb-1">
                                 <span class="text-[10px] font-bold text-orange-700">⚡ 提前清償設定</span>
                                 <button @click="addEarlyRepayment(loan)" class="bg-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] outline-none">+ 新增</button>
                             </div>
-                            <div v-for="(er, erIdx) in loan.earlyRepayments" :key="'er'+erIdx" class="flex items-center gap-1 mt-1 bg-white p-1 rounded border border-orange-100">
-                                <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期</span>
-                                <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="多還本金">
-                                <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
-                                <button @click="deleteItemConfirm(loan.earlyRepayments, erIdx); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark text-xs"></i></button>
+                            <div v-for="(er, erIdx) in loan.earlyRepayments" :key="'er'+erIdx" class="mt-1 bg-white p-1.5 rounded border border-orange-100 flex flex-col gap-1.5">
+                                <div class="flex items-center gap-1 w-full">
+                                    <span class="text-[9px] text-gray-500">第</span><input type="number" v-model.number="er.period" @change="generateLoanSchedule(loan)" class="w-8 text-[10px] border rounded text-center outline-none" placeholder="期"><span class="text-[9px] text-gray-500">期多還</span>
+                                    <input type="number" v-model.number="er.amount" @change="generateLoanSchedule(loan)" class="flex-1 min-w-0 text-[10px] border rounded px-1 text-right text-orange-600 font-bold outline-none" placeholder="$ 本金">
+                                    <input type="number" v-model.number="er.penalty" @change="generateLoanSchedule(loan)" class="w-12 shrink-0 text-[10px] border rounded px-1 text-right text-red-500 outline-none" placeholder="違約金">
+                                    <button @click="deleteItemConfirm(loan.earlyRepayments, erIdx); generateLoanSchedule(loan);" class="text-red-400 px-1 shrink-0 outline-none"><i class="fa-solid fa-xmark text-xs"></i></button>
+                                </div>
+                                <div class="flex items-center gap-1 text-[10px]">
+                                    <span class="text-gray-500 shrink-0">後續影響:</span>
+                                    <select v-model="er.recalcType" @change="generateLoanSchedule(loan)" class="flex-1 border rounded px-1 py-0.5 outline-none bg-orange-50 text-orange-800">
+                                        <option value="reduce_term">月繳不變，提前還完 (縮短總期數)</option>
+                                        <option value="reduce_pmt">期數不變，降低後續每月應繳本息</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -624,21 +571,6 @@
         </div>
     </div>
 
-    <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4 no-print">
-        <div class="bg-white rounded-xl w-full max-w-[280px] p-5">
-            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-lg"></i></button></div>
-            <div class="flex items-center gap-2 mb-4">
-                <button @click="monthPicker.year--" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-minus"></i></button>
-                <div class="flex-1 text-center font-bold text-lg">{{ monthPicker.year }} 年</div>
-                <button @click="monthPicker.year++" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-plus"></i></button>
-            </div>
-            <div class="grid grid-cols-4 gap-2">
-                <button v-for="m in 12" :key="'m'+m" @click="selectMonth(m)" class="py-2 rounded font-bold transition outline-none" :class="(monthPicker.year===currentYear && m===currentMonth) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">{{ m }}月</button>
-            </div>
-            <button @click="goToCurrentMonth" class="w-full mt-4 py-2 bg-blue-50 text-blue-600 font-bold rounded outline-none">回到本月 (解除歷史鎖定)</button>
-        </div>
-    </div>
-
     <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4 no-print">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 flex justify-between items-center text-gray-800">
@@ -677,9 +609,6 @@
                     <option value="cash">現金/轉帳 (扣戶頭)</option>
                     <optgroup label="刷卡代繳 (併入卡費)"><option v-for="c in cards" :key="c.id" :value="'card_'+c.id">{{ c.name }}</option></optgroup>
                 </select>
-                <p v-if="modal.paymentMethod.startsWith('card_')" class="text-[10px] text-purple-600 mt-2 font-bold bg-purple-50 p-1.5 rounded">
-                    💡 系統將自動把這筆費用加到所選的信用卡帳單中。
-                </p>
             </div>
             <div v-if="modal.type === 'card'" class="mb-4 border border-purple-200 rounded p-2 bg-purple-50 text-xs">
                 <div class="flex justify-between items-center font-bold text-purple-700 mb-1">新增刷卡回饋折抵</div>
@@ -725,7 +654,7 @@
             <div class="space-y-3">
                 <select v-model="txnModal.cardId" class="w-full border rounded px-3 py-2 text-sm font-bold bg-purple-50 text-purple-700 outline-none"><option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option></select>
                 <div class="flex gap-2"><input type="text" v-model="txnModal.name" placeholder="買什麼？" class="w-2/3 border-2 rounded px-3 py-1.5 text-sm outline-none focus:border-purple-400"><input type="number" v-model.number="txnModal.amount" placeholder="$" class="w-1/3 border-2 rounded px-3 py-1.5 text-sm font-bold text-red-600 outline-none focus:border-purple-400"></div>
-                <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間 (系統已自動帶入)</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none"></div>
+                <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none"></div>
             </div>
             <button @click="saveTransaction" class="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition outline-none">加入卡費</button>
         </div>
@@ -747,17 +676,11 @@
                 activeTab: 'ledger', currentYear: now.getFullYear(), currentMonth: now.getMonth() + 1, realYear: REAL_YEAR,
                 chartFilters: { showFixed: true, showCards: true, showLoans: true },
                 
-                // 預設資料 (包含預設名稱與卡片)
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
                 fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
-                cards: [
-                    { id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] },
-                    { id: 'card_unicard', name: '玉山 Unicard', color: '#ec4899', statementDate: 5, dueDate: 20, forceShow: true, installments: [] },
-                    { id: 'card_richart', name: '台新 Richart', color: '#8b5cf6', statementDate: 10, dueDate: 25, forceShow: true, installments: [] },
-                    { id: 'card_dbs', name: '星展銀行', color: '#d946ef', statementDate: 15, dueDate: 5, forceShow: true, installments: [] }
-                ],
-                loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 100000, annualRate: 15.97, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: 2026, startMonth: 2, dueDate: 23, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
+                cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] }],
+                loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 100000, annualRate: 15.97, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 23, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
                 
                 adhocExpenses: [], records: {}, transactions: [], incomeDrafts: {}, uiState: { cardDetails: {} },
                 historicalSnapshots: {},
@@ -851,24 +774,10 @@
             },
             monthlyStats() {
                 let totalExpectedDue = 0, unpaidDue = 0, actPaid = 0, estInc = 0, actRec = 0;
-                
-                this.ledgerCardBills.forEach(b => { 
-                    let amt = Number(b.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!b.isPaid) unpaidDue += amt; else actPaid += Number(b.actualAmount) || 0; 
-                });
-                this.ledgerLoans.forEach(l => { 
-                    let amt = Number(l.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!l.isPaid) unpaidDue += amt; else actPaid += Number(l.actualAmount) || 0; 
-                });
-                this.ledgerOtherExpenses.forEach(e => { 
-                    let amt = Number(e.expectedAmount) || 0; totalExpectedDue += amt; 
-                    if (!e.isPaid) unpaidDue += amt; else if(e.paymentMethod==='cash'||e.paymentMethod==='transfer') actPaid += Number(e.actualAmount) || 0; 
-                });
-                this.ledgerIncomes.forEach(i => { 
-                    let amt = Number(i.expectedAmount) || 0; estInc += amt; 
-                    if(i.isReceived) actRec += Number(i.actualAmount) || 0; 
-                });
-                
+                this.ledgerCardBills.forEach(b => { let amt = Number(b.expectedAmount)||0; totalExpectedDue+=amt; if(!b.isPaid) unpaidDue+=amt; else actPaid+=(Number(b.actualAmount)||0); });
+                this.ledgerLoans.forEach(l => { let amt = Number(l.expectedAmount)||0; totalExpectedDue+=amt; if(!l.isPaid) unpaidDue+=amt; else actPaid+=(Number(l.actualAmount)||0); });
+                this.ledgerOtherExpenses.forEach(e => { let amt = Number(e.expectedAmount)||0; totalExpectedDue+=amt; if(!e.isPaid) unpaidDue+=amt; else if(e.paymentMethod==='cash'||e.paymentMethod==='transfer') actPaid+=(Number(e.actualAmount)||0); });
+                this.ledgerIncomes.forEach(i => { let amt = Number(i.expectedAmount)||0; estInc += amt; if(i.isReceived) actRec += (Number(i.actualAmount)||0); });
                 let dti = estInc > 0 ? (totalExpectedDue / estInc) * 100 : 0;
                 return { expectedIncome: estInc, totalExpectedDue: totalExpectedDue, unpaidDue: unpaidDue, actualPaid: actPaid, actualReceived: actRec, actualBalance: actRec - actPaid, dti: dti };
             }
@@ -908,7 +817,6 @@
             getPaymentMethodName(pm) { if (pm === 'cash') return '現金'; if (pm === 'transfer') return '轉帳'; if (pm && pm.startsWith('card_')) { let c = this.cards.find(x => x.id === pm.replace('card_','')); return c ? `刷卡 (${c.name})` : '刷卡'; } return ''; },
             toggleCardUI(id) { this.uiState.cardDetails[id] = !this.uiState.cardDetails[id]; },
             
-            // --- Charts ---
             switchTab(tab) { this.activeTab = tab; if (tab === 'charts') { this.$nextTick(() => { this.updateCharts(); }); } },
             updateCharts() { this.renderPieChart(); this.renderLineChart(); },
             renderPieChart() {
@@ -934,7 +842,6 @@
                 lineChartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: '總負債餘額', data: dataPoints, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks:{font:{size:9}} }, y: { beginAtZero: true, ticks:{font:{size:9}} } }, plugins: { legend: { display: false } } } });
             },
 
-            // --- Income Drafts ---
             getDraftKey(inc) { return `${inc.id}_${this.currentYear}_${this.currentMonth}`; },
             syncIncomeDrafts() {
                 this.incomes.forEach(inc => {
@@ -964,10 +871,8 @@
                 let key = this.getDraftKey(inc);
                 if (!this.incomeDrafts[key][field]) this.incomeDrafts[key][field] = [];
                 this.incomeDrafts[key][field].push({ name:'', type:'fixed', amount:'' }); 
-                this.incomeDrafts[key] = Object.assign({}, this.incomeDrafts[key]); // Trigger Vue reactivity
             },
 
-            // --- Modals & Records ---
             openRecordModal(type, data) {
                 this.modal.type = type; this.modal.data = data; this.modal.inputAmount = type === 'income' ? this.getIncomeExpected(data) : data.expectedAmount;
                 this.modal.paymentMethod = 'cash'; this.modal.showReward = false; this.modal.rewardAmount = '';
@@ -1053,7 +958,7 @@
                 this.loans.push({ id: 'loan_'+Date.now(), name: '', color: '#3b82f6', totalAmount: 100000, annualRate: 2.0, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: this.currentYear, startMonth: this.currentMonth, dueDate: 1, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false });
                 this.generateLoanSchedule(this.loans[this.loans.length - 1]); this.$nextTick(() => { this.initSortable(); });
             },
-            addEarlyRepayment(loan) { if(!loan.earlyRepayments) loan.earlyRepayments = []; loan.earlyRepayments.push({ period: 1, amount: 0, penalty: 0 }); },
+            addEarlyRepayment(loan) { if(!loan.earlyRepayments) loan.earlyRepayments = []; loan.earlyRepayments.push({ period: 1, amount: 0, penalty: 0, recalcType: 'reduce_term' }); },
             generateLoanSchedule(loan) {
                 let p = Number(loan.totalAmount)||0; let n = Number(loan.periods)||1; let r = (Number(loan.annualRate)||0)/100/12;
                 let grace = Number(loan.gracePeriod)||0; let method = loan.repaymentMethod || 'equal_installment'; let remOpt = loan.remainderOption || 'last';
@@ -1072,6 +977,8 @@
                         firstExtra = p - normalTotalPrin; 
                     }
                 }
+                
+                let dynamicBasePrin = basePrin;
 
                 for (let i = 1; i <= n; i++) {
                     let expectedMonth = sm - 1 + (i - 1);
@@ -1081,15 +988,13 @@
                     let isGrace = (i <= grace); let remN = n - i + 1; let int = Math.round(bal * r); let prin = 0;
                     if (!isGrace) { 
                         if (method === 'equal_principal' || r === 0) { 
-                            prin = basePrin; 
+                            prin = dynamicBasePrin; 
                             if (remOpt === 'first' && i === grace + 1) prin += prinRem;
                             if (remOpt === 'last' && i === n) prin += prinRem;
                         } 
                         else if (method === 'equal_installment') { 
                             prin = fixedPmt - int;
                             if (remOpt === 'first' && i === grace + 1) prin += firstExtra;
-                            if (remOpt === 'last' && i === n) prin = bal;
-                            else if (remOpt === 'first' && i === n) prin = bal;
                         } 
                     }
                     if (prin > bal || i === n) prin = bal;
@@ -1097,13 +1002,26 @@
                     let oldRow = oldSch.find(s => s.period === i); let isEdited = false;
                     if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
 
-                    let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0;
-                    if (match) { eAmt = Number(match.amount)||0; pen = Number(match.penalty)||0; if(eAmt > bal-prin) eAmt = bal-prin; }
+                    let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0; let recalcType = 'reduce_term';
+                    if (match) { 
+                        eAmt = Number(match.amount)||0; pen = Number(match.penalty)||0; recalcType = match.recalcType || 'reduce_term';
+                        if(eAmt > bal-prin) eAmt = bal-prin; 
+                    }
                     bal -= (prin + eAmt); 
                     
-                    if (eAmt > 0 && i < n && method === 'equal_installment' && r > 0 && !isEdited) {
-                        let newRemN = n - i; fixedPmt = Math.round((bal * r * Math.pow(1 + r, newRemN)) / (Math.pow(1 + r, newRemN) - 1));
+                    // 🌟 提前清償的後續攤還處理
+                    if (eAmt > 0 && i < n && !isEdited) {
+                        if (recalcType === 'reduce_pmt') {
+                            let newRemN = n - i; 
+                            if (method === 'equal_installment' && r > 0) {
+                                fixedPmt = Math.round((bal * r * Math.pow(1 + r, newRemN)) / (Math.pow(1 + r, newRemN) - 1));
+                            } else if (method === 'equal_principal' || r === 0) {
+                                dynamicBasePrin = Math.floor(bal / newRemN);
+                                prinRem = bal - (dynamicBasePrin * newRemN);
+                            }
+                        }
                     }
+                    
                     sch.push({ period: i, dueDate: `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`, principal: prin, interest: int, earlyAmt: eAmt, penalty: pen, totalToPay: prin + int + eAmt + pen, balance: Math.max(0, bal), isEdited: isEdited });
                     if (bal <= 0) break;
                 }
@@ -1130,9 +1048,9 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v23', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v24', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v23') || localStorage.getItem('cashflow_v22') || localStorage.getItem('cashflow_v21');
+                let saved = localStorage.getItem('cashflow_v24') || localStorage.getItem('cashflow_v23');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
@@ -1142,6 +1060,8 @@
                     } catch (e) {}
                 }
                 this.cards.forEach(c => { if(c.forceShow === undefined) c.forceShow = true; });
+                // 確保舊版提前還款有預設 recalcType
+                this.loans.forEach(l => { (l.earlyRepayments||[]).forEach(er => { if(!er.recalcType) er.recalcType = 'reduce_term'; }); });
             },
             async shareFileObj(c, n, m) { try { const f = new File([c], n, { type: m }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: n }); } else { const u = URL.createObjectURL(f); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); } this.dataModal.show = false; } catch (err) {} },
             shareBackupFile() { this.shareFileObj(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
