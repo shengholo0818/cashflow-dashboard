@@ -125,6 +125,7 @@
     <!-- ==================== 手機 UI 介面 (不列印) ==================== -->
     <div class="no-print flex-grow pb-10">
         
+        <!-- 頂部導覽與備份 -->
         <div class="bg-white p-4 shadow-sm flex justify-between items-center z-50 relative">
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fa-solid fa-wallet text-blue-500"></i> CashFlow
@@ -134,6 +135,7 @@
             </button>
         </div>
 
+        <!-- 頁籤導覽列 -->
         <div class="flex bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
             <button @click="switchTab('ledger')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'ledger' ? 'tab-active' : 'tab-inactive'"><i class="fa-regular fa-calendar-check mr-1"></i> 記帳本</button>
             <button @click="switchTab('settings')" class="flex-1 py-3 text-xs sm:text-sm transition-colors outline-none" :class="activeTab === 'settings' ? 'tab-active' : 'tab-inactive'"><i class="fa-solid fa-sliders mr-1"></i> 設定與貸款</button>
@@ -143,6 +145,7 @@
         <!-- ==================== TAB 1：本月記帳本 ==================== -->
         <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
+            <!-- 年月選擇器 -->
             <div class="flex justify-between items-center bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <button @click="changeMonth(-1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-r border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-left"></i></button>
                 <button @click="monthPicker.show = true" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
@@ -151,11 +154,13 @@
                 <button @click="changeMonth(1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-l border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
+            <!-- 歷史鎖定警示 -->
             <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
                 <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
-                <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，修改【設定與貸款】不會影響此處的資料。</div>
+                <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處資料。</div>
             </div>
 
+            <!-- 儀表板卡片區 -->
             <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
                 <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣現金支出)</div>
                 <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
@@ -170,11 +175,16 @@
                     <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
                     <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
                 </div>
+                <!-- 預估財務健康度 -->
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
-                    <div class="text-[11px] text-gray-500">預估財務健康度 (總支出 ÷ 總收入)</div>
+                    <div class="text-[11px] text-gray-500">預估財務健康度 (總預估支出 ÷ 總預估收入)</div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">{{ monthlyStats.dti.toFixed(1) }}%</span>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">{{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}</span>
+                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
+                            {{ monthlyStats.dti.toFixed(1) }}%
+                        </span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
+                            {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -187,7 +197,7 @@
                 </div>
                 <div v-if="ledgerIncomes.length === 0" class="text-center text-xs text-gray-400 py-2">無收入紀錄</div>
                 
-                <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30">
+                <div v-for="inc in ledgerIncomes" :key="inc.recordId" class="mb-4 last:mb-0 border border-green-100 rounded-lg p-2 bg-green-50/30 relative">
                     <div class="flex justify-between items-center">
                         <div class="flex-1 min-w-0 pr-2">
                             <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 truncate">
@@ -219,6 +229,7 @@
                                 <div v-for="a in (inc.fixedAllowances||[])" :key="a.name" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
                                 <div v-for="d in (inc.fixedDeductions||[])" :key="d.name" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
                             </div>
+                            <!-- 臨時加減項 -->
                             <div class="border-t pt-2">
                                 <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded outline-none">+新增</button></div>
                                 <div v-for="(ta, idx) in incomeDrafts[getDraftKey(inc)].tempAllowances" :key="'ta'+idx" class="flex gap-1 mb-1 items-center">
@@ -342,8 +353,9 @@
         <!-- ==================== TAB 2：設定與貸款 ==================== -->
         <div v-show="activeTab === 'settings'" class="p-4 space-y-4 no-print">
             
-            <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-[11px] shadow-inner font-medium">
-                <i class="fa-solid fa-circle-info mr-1"></i> 在此修改設定不會影響過去已繳款的歷史紀錄。點擊左側 <i class="fa-solid fa-bars mx-1 text-gray-400"></i> 可以拖曳排序！
+            <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-[11px] shadow-inner font-medium flex items-start gap-2">
+                <i class="fa-solid fa-circle-info mt-0.5"></i> 
+                <div>在此修改設定不會影響過去已繳款的歷史紀錄。點擊左側 <i class="fa-solid fa-bars mx-0.5 text-gray-400"></i> 可以拖曳排序！</div>
             </div>
 
             <!-- 薪資設定 -->
@@ -402,7 +414,7 @@
             <!-- 信用卡設定 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h2 class="font-bold text-gray-700">信用卡管理 (含自訂明細)</h2>
+                    <h2 class="font-bold text-gray-700">信用卡管理 <span class="font-normal text-xs text-gray-400">(含自訂明細)</span></h2>
                     <button @click="addCard" class="text-purple-600 text-[11px] font-bold bg-purple-50 px-2 py-1 rounded outline-none">+ 新增卡片</button>
                 </div>
                 <div id="cards-list" class="space-y-4">
@@ -416,6 +428,9 @@
                         <div class="flex gap-2 text-[10px] text-gray-600 mb-3 bg-white p-1.5 rounded border border-gray-200">
                             <div class="flex items-center gap-1 flex-1">出帳日:每<input type="number" v-model.number="card.statementDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
                             <div class="flex items-center gap-1 flex-1">截止日:每<input type="number" v-model.number="card.dueDate" class="w-8 border rounded text-center py-0.5 outline-none">號</div>
+                            <label class="flex items-center gap-1 shrink-0 cursor-pointer text-blue-600 font-bold">
+                                <input type="checkbox" v-model="card.forceShow" class="w-3 h-3"> 顯示$0帳單
+                            </label>
                         </div>
 
                         <div v-for="(item, itemIdx) in card.installments" :key="item.id" class="bg-white border border-purple-100 rounded p-2 mb-2 relative shadow-sm">
@@ -465,7 +480,7 @@
             <!-- 貸款設定 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h2 class="font-bold text-gray-700">貸款與攤還設定</h2>
+                    <h2 class="font-bold text-gray-700">貸款與攤還設定 <span class="font-normal text-xs text-gray-400">(含自訂明細)</span></h2>
                     <button @click="addLoan" class="text-blue-600 text-[11px] font-bold bg-blue-50 px-2 py-1 rounded outline-none">+ 新增貸款</button>
                 </div>
                 <div id="loans-list" class="space-y-4">
@@ -580,9 +595,10 @@
 
     </div> <!-- END no-print wrapper -->
 
-    <!-- ==================== 彈出視窗群 ==================== -->
+    <!-- ==================== 彈出視窗群 (置於外層) ==================== -->
     
-    <div v-if="pdfModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4 no-print">
+    <!-- PDF 報表設定 -->
+    <div v-if="pdfModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 border-b pb-2">選擇列印/匯出內容</h3>
             <div class="space-y-3 text-sm text-gray-700 mb-5 font-bold">
@@ -601,7 +617,8 @@
         </div>
     </div>
 
-    <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4 no-print">
+    <!-- 快速跳轉月份 -->
+    <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-[280px] p-5">
             <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-lg"></i></button></div>
             <div class="flex items-center gap-2 mb-4">
@@ -616,7 +633,8 @@
         </div>
     </div>
 
-    <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4 no-print">
+    <!-- 備份/匯出 Modal -->
+    <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 flex justify-between items-center text-gray-800">
                 <span><i class="fa-solid fa-database text-blue-500 mr-2"></i> 備份與匯出</span>
@@ -640,7 +658,7 @@
     </div>
 
     <!-- 入帳/繳款 確認 Modal -->
-    <div v-if="modal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4 no-print">
+    <div v-if="modal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-1">{{ modal.type === 'income' ? '確認入帳' : '確認繳款' }}</h3>
             <p class="text-sm text-gray-500 mb-3">{{ modal.data.name }} (預估: $ {{ formatNumber(modal.data.expectedAmount) }})</p>
@@ -672,7 +690,7 @@
     </div>
 
     <!-- 單筆收入 Modal -->
-    <div v-if="adhocIncModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4 no-print">
+    <div v-if="adhocIncModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-3 text-green-700">新增單筆收入</h3>
             <div class="space-y-3">
@@ -684,7 +702,7 @@
     </div>
 
     <!-- 單筆支出 Modal -->
-    <div v-if="adhocModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4 no-print">
+    <div v-if="adhocModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-3 text-orange-600">新增單筆支出</h3>
             <div class="space-y-3">
@@ -696,7 +714,7 @@
     </div>
 
     <!-- Txn Modal -->
-    <div v-if="txnModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print">
+    <div v-if="txnModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div class="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-sm p-5">
             <div class="flex justify-between mb-3 border-b pb-2"><h3 class="text-lg font-bold text-purple-700">記一筆刷卡</h3><button @click="txnModal.show=false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-xl"></i></button></div>
             <div class="space-y-3">
@@ -727,7 +745,7 @@
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
                 fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
-                cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }],
+                cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] }],
                 loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 300000, annualRate: 2.5, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 15, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
                 
                 adhocExpenses: [], records: {}, transactions: [], incomeDrafts: {}, uiState: { cardDetails: {} },
@@ -772,7 +790,7 @@
                 let list = [];
                 this.fixedExpenses.forEach(f => {
                     let key = `expense_fixed_${f.id}_${this.currentYear}_${this.currentMonth}`; let rec = this.records[key];
-                    let expAmt = (snapExists && rec && rec.snapshotExpected) ? rec.snapshotExpected : f.amount;
+                    let expAmt = (snapExists && rec && rec.snapshotExpected !== undefined) ? rec.snapshotExpected : f.amount;
                     list.push({ recordId: key, type: 'fixed', sourceId: f.id, name: f.name, expectedAmount: expAmt, color: f.color || '#f97316', isPaid: !!rec, actualAmount: rec ? rec.amount : 0, date: rec ? rec.date : '', paymentMethod: rec ? rec.paymentMethod : '' });
                 });
                 this.adhocExpenses.filter(a => a.year === this.currentYear && a.month === this.currentMonth).forEach(a => {
@@ -782,6 +800,10 @@
                 return list;
             },
             ledgerCardBills() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    let list = this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerCardBills || [];
+                    return list.map(item => { let rec = this.records[item.recordId]; item.isPaid = !!rec; item.actualAmount = rec ? rec.amount : 0; return item; });
+                }
                 return this.cards.map(card => {
                     let billTotal = 0; let details = { installments: [], transactions: [] };
                     if (card.installments) card.installments.forEach(item => {
@@ -794,10 +816,14 @@
                     this.transactions.filter(t => t.cardId === card.id && t.year === this.currentYear && t.month === this.currentMonth).forEach(t => { billTotal += t.amount; details.transactions.push(t); });
                     const recordKey = `expense_card_${card.id}_${this.currentYear}_${this.currentMonth}`;
                     if (this.uiState.cardDetails[card.id] === undefined) this.uiState.cardDetails[card.id] = false;
-                    return { id: card.id, recordId: recordKey, type: 'card', name: card.name, expectedAmount: billTotal, color: card.color || '#a855f7', statementDate: card.statementDate||1, dueDate: card.dueDate||15, details: details, isPaid: !!this.records[recordKey], actualAmount: this.records[recordKey] ? this.records[recordKey].amount : 0, date: this.records[recordKey] ? this.records[recordKey].date : '' };
-                }).filter(b => b.expectedAmount > 0 || b.details.transactions.length > 0); 
+                    return { id: card.id, recordId: recordKey, type: 'card', name: card.name, expectedAmount: billTotal, color: card.color || '#a855f7', statementDate: card.statementDate||1, dueDate: card.dueDate||15, forceShow: card.forceShow, details: details, isPaid: !!this.records[recordKey], actualAmount: this.records[recordKey] ? this.records[recordKey].amount : 0, date: this.records[recordKey] ? this.records[recordKey].date : '' };
+                }).filter(b => b.expectedAmount > 0 || b.details.transactions.length > 0 || b.forceShow); 
             },
             ledgerLoans() {
+                if (this.isHistoricalView && this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`]) {
+                    let list = this.historicalSnapshots[`${this.currentYear}_${this.currentMonth}`].ledgerLoans || [];
+                    return list.map(item => { let rec = this.records[item.recordId]; item.isPaid = !!rec; item.actualAmount = rec ? rec.amount : 0; return item; });
+                }
                 let list = [];
                 this.loans.forEach(loan => {
                     let pDiff = (this.currentYear - loan.startYear) * 12 + (this.currentMonth - loan.startMonth) + 1;
@@ -908,13 +934,7 @@
             },
             isIncomeReceived(inc) { return !!this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`] || !!this.records[`income_adhoc_${inc.sourceId}`]; },
             getIncomeActual(inc) { return (this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`]?.amount || this.records[`income_adhoc_${inc.sourceId}`]?.amount || 0); },
-            
-            // 🌟 修復臨時加減項
-            addTempIncomeItem(inc, field) { 
-                let key = this.getDraftKey(inc);
-                if (!this.incomeDrafts[key][field]) this.incomeDrafts[key][field] = [];
-                this.incomeDrafts[key][field].push({ name:'', type:'fixed', amount:'' }); 
-            },
+            addTempIncomeItem(inc, field) { let draft = this.incomeDrafts[this.getDraftKey(inc)]; if (!draft[field]) draft[field] = []; draft[field].push({ name:'', type:'fixed', amount:'' }); },
 
             // --- Modals & Records ---
             openRecordModal(type, data) {
@@ -965,7 +985,7 @@
             addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
             addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); this.$nextTick(() => { this.initSortable(); }); },
-            addCard() { this.cards.push({ id: 'card_'+Date.now(), name: '', color: '#a855f7', statementDate: 1, dueDate: 15, installments: [] }); this.$nextTick(() => { this.initSortable(); }); },
+            addCard() { this.cards.push({ id: 'card_'+Date.now(), name: '', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] }); this.$nextTick(() => { this.initSortable(); }); },
             addInstallment(cardIdx) {
                 const item = { id: 'inst_'+Date.now(), name: '', totalAmount: 0, periods: 12, interestRate: 0, startYear: this.currentYear, startMonth: this.currentMonth, remainderOption: 'first', showSchedule: false, schedule: [] };
                 if(!this.cards[cardIdx].installments) this.cards[cardIdx].installments = [];
@@ -980,12 +1000,9 @@
 
                 for (let i = 1; i <= n; i++) {
                     let expectedMonth = sm - 1 + (i - 1);
-                    let y = sy + Math.floor(expectedMonth / 12);
-                    let m = (expectedMonth % 12) + 1;
+                    let y = sy + Math.floor(expectedMonth / 12); let m = (expectedMonth % 12) + 1;
                     
-                    let oldRow = oldSch.find(s => s.period === i);
-                    let isEdited = false;
-                    
+                    let oldRow = oldSch.find(s => s.period === i); let isEdited = false;
                     let int = Math.round(bal * mRate); let prin = 0;
                     if (rate === 0) { 
                         prin = basePrin; 
@@ -1009,13 +1026,9 @@
             generateLoanSchedule(loan) {
                 let p = Number(loan.totalAmount)||0; let n = Number(loan.periods)||1; let r = (Number(loan.annualRate)||0)/100/12;
                 let grace = Number(loan.gracePeriod)||0; let method = loan.repaymentMethod || 'equal_installment'; let remOpt = loan.remainderOption || 'last';
-                
-                let sy = Number(loan.startYear)||this.currentYear;
-                let sm = Number(loan.startMonth)||this.currentMonth;
-                let sd = Number(loan.dueDate)||1;
+                let sy = Number(loan.startYear)||this.currentYear; let sm = Number(loan.startMonth)||this.currentMonth; let sd = Number(loan.dueDate)||1;
                 
                 let oldSch = loan.schedule || []; let sch = []; let bal = p; let early = loan.earlyRepayments || [];
-                
                 let realN = n - grace; let basePrin = realN > 0 ? Math.floor(p / realN) : 0; let prinRem = p - (basePrin * realN);
                 let fixedPmt = 0; let firstExtra = 0;
 
@@ -1030,10 +1043,8 @@
 
                 for (let i = 1; i <= n; i++) {
                     let expectedMonth = sm - 1 + (i - 1);
-                    let y = sy + Math.floor(expectedMonth / 12);
-                    let m = (expectedMonth % 12) + 1;
-                    let lastDay = new Date(y, m, 0).getDate();
-                    let d = Math.min(sd, lastDay);
+                    let y = sy + Math.floor(expectedMonth / 12); let m = (expectedMonth % 12) + 1;
+                    let lastDay = new Date(y, m, 0).getDate(); let d = Math.min(sd, lastDay);
                     
                     let isGrace = (i <= grace); let remN = n - i + 1; let int = Math.round(bal * r); let prin = 0;
                     if (!isGrace) { 
@@ -1051,8 +1062,7 @@
                     }
                     if (prin > bal || i === n) prin = bal;
 
-                    let oldRow = oldSch.find(s => s.period === i);
-                    let isEdited = false;
+                    let oldRow = oldSch.find(s => s.period === i); let isEdited = false;
                     if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
 
                     let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0;
@@ -1088,9 +1098,9 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v21', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v22', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v21') || localStorage.getItem('cashflow_v20') || localStorage.getItem('cashflow_v19');
+                let saved = localStorage.getItem('cashflow_v22') || localStorage.getItem('cashflow_v21') || localStorage.getItem('cashflow_v20');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
@@ -1099,6 +1109,7 @@
                         if(d.historicalSnapshots) this.historicalSnapshots = d.historicalSnapshots;
                     } catch (e) {}
                 }
+                this.cards.forEach(c => { if(c.forceShow === undefined) c.forceShow = true; });
             },
             async shareFileObj(c, n, m) { try { const f = new File([c], n, { type: m }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: n }); } else { const u = URL.createObjectURL(f); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); } this.dataModal.show = false; } catch (err) {} },
             shareBackupFile() { this.shareFileObj(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
