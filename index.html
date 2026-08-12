@@ -102,7 +102,7 @@
             </button>
         </div>
 
-        <button @click="showWelcome = false" class="mt-10 text-blue-200 text-sm font-medium border-b border-blue-200 pb-0.5 opacity-80 hover:opacity-100 transition">
+        <button @click="showWelcome = false" class="mt-10 text-blue-200 text-sm font-medium border-b border-blue-200 pb-0.5 opacity-80 hover:opacity-100 transition outline-none">
             直接進入儀表板首頁
         </button>
     </div>
@@ -197,7 +197,6 @@
         <!-- ==================== TAB 1：本月記帳本 ==================== -->
         <div v-show="activeTab === 'ledger'" class="p-4 space-y-4">
             
-            <!-- 年月選擇器 -->
             <div class="flex justify-between items-center bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <button @click="changeMonth(-1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-r border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-left"></i></button>
                 <button @click="monthPicker.show = true" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
@@ -206,13 +205,11 @@
                 <button @click="changeMonth(1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-l border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
 
-            <!-- 歷史鎖定警示 -->
             <div v-if="isHistoricalView" class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[11px] p-2 rounded-lg flex items-start gap-2 shadow-inner">
                 <i class="fa-solid fa-clock-rotate-left mt-0.5"></i>
                 <div><span class="font-bold">歷史時空鎖定模式</span><br>您正在查看過去的帳本。此月份的設定與帳單已被鎖定，在【設定】中的修改不會影響此處資料。</div>
             </div>
 
-            <!-- 儀表板卡片區 -->
             <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col justify-center text-white">
                 <div class="text-xs text-gray-300 mb-1">目前可用現金 (已入帳 - 已扣現金支出)</div>
                 <div class="text-3xl font-bold">$ {{ formatNumber(monthlyStats.actualBalance) }}</div>
@@ -227,21 +224,16 @@
                     <div class="text-[11px] text-blue-600 mb-1">本月已掏出現金</div>
                     <div class="text-lg font-bold text-blue-800">$ {{ formatNumber(monthlyStats.actualPaid) }}</div>
                 </div>
-                <!-- 預估財務健康度 -->
                 <div class="bg-white p-3 rounded-xl shadow-sm border-l-4 col-span-2 flex justify-between items-center" :class="monthlyStats.dti > 60 ? 'border-red-400' : (monthlyStats.dti > 40 ? 'border-orange-400' : 'border-green-400')">
                     <div class="text-[11px] text-gray-500">預估財務健康度 (總預估支出 ÷ 總預估收入)</div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">
-                            {{ monthlyStats.dti.toFixed(1) }}%
-                        </span>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">
-                            {{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}
-                        </span>
+                        <span class="font-bold" :class="monthlyStats.dti > 60 ? 'text-red-500' : (monthlyStats.dti > 40 ? 'text-orange-500' : 'text-green-500')">{{ monthlyStats.dti.toFixed(1) }}%</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded text-white" :class="monthlyStats.dti > 60 ? 'bg-red-500' : (monthlyStats.dti > 40 ? 'bg-orange-500' : 'bg-green-500')">{{ monthlyStats.dti > 60 ? '危險' : (monthlyStats.dti > 40 ? '警告' : '健康') }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 1. 收入 -->
+            <!-- Ledger: 收入區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">1. 本月收入</h2>
@@ -298,7 +290,7 @@
                 </div>
             </div>
 
-            <!-- 2. 支出 -->
+            <!-- Ledger: 支出區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
@@ -328,7 +320,7 @@
                 </div>
             </div>
 
-            <!-- 3. 卡費區塊 -->
+            <!-- Ledger: 卡費區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">3. 信用卡帳單</h2>
@@ -381,7 +373,7 @@
                 </div>
             </div>
 
-            <!-- 4. 貸款區塊 -->
+            <!-- Ledger: 貸款區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500 mt-4">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">4. 本月貸款攤還</h2>
@@ -389,7 +381,7 @@
                 
                 <div v-if="ledgerLoans.length === 0" class="text-center text-xs text-gray-400 py-4">本月無待繳貸款 🎉</div>
 
-                <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mb-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
+                <div v-for="loan in ledgerLoans" :key="loan.recordId" class="flex justify-between items-center mt-3 p-3 rounded-lg border border-blue-200" :class="loan.isPaid ? 'bg-gray-100 opacity-70' : 'bg-blue-50'">
                     <div class="flex-1 pr-2 min-w-0">
                         <div class="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
                             <span class="w-3 h-3 rounded-full inline-block shrink-0" :style="{ backgroundColor: loan.color }"></span>
@@ -805,13 +797,13 @@
         data() {
             const now = new Date();
             return {
-                showWelcome: true, // 控制啟動首頁顯示
-                activeTab: 'ledger', currentYear: now.getFullYear(), currentMonth: now.getMonth() + 1, realYear: REAL_YEAR,
+                showWelcome: true, 
+                activeTab: 'ledger', currentYear: now.getFullYear(), currentMonth: now.getMonth() + 1, realYear: REAL_YEAR, realMonth: REAL_MONTH,
                 chartFilters: { showFixed: true, showCards: true, showLoans: true },
                 
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
-                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }],
+                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
                 cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] }],
                 loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 100000, annualRate: 15.97, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: now.getFullYear(), startMonth: now.getMonth() + 1, dueDate: 23, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
                 
@@ -925,30 +917,11 @@
             this.$nextTick(() => { this.initSortable(); });
         },
         methods: {
-            // Welcome Screen Logic
-            getGreeting() {
-                const hour = new Date().getHours();
-                if (hour < 12) return '早安';
-                if (hour < 18) return '午安';
-                return '晚安';
-            },
-            actionGoToCurrentMonth() {
-                this.currentYear = REAL_YEAR; this.currentMonth = REAL_MONTH;
-                this.activeTab = 'ledger'; this.showWelcome = false;
-            },
-            actionGoToNextMonth() {
-                this.currentYear = REAL_YEAR;
-                let nextM = REAL_MONTH + 1;
-                if (nextM > 12) { nextM = 1; this.currentYear++; }
-                this.currentMonth = nextM;
-                this.activeTab = 'ledger'; this.showWelcome = false;
-            },
+            getGreeting() { const h = new Date().getHours(); if (h < 12) return '早安'; if (h < 18) return '午安'; return '晚安'; },
+            actionGoToCurrentMonth() { this.currentYear = REAL_YEAR; this.currentMonth = REAL_MONTH; this.activeTab = 'ledger'; this.showWelcome = false; },
+            actionGoToNextMonth() { this.currentYear = REAL_YEAR; let n = REAL_MONTH + 1; if (n > 12) { n = 1; this.currentYear++; } this.currentMonth = n; this.activeTab = 'ledger'; this.showWelcome = false; },
             actionGoToSettings() { this.activeTab = 'settings'; this.showWelcome = false; },
-            actionQuickTxn() {
-                this.currentYear = REAL_YEAR; this.currentMonth = REAL_MONTH;
-                this.activeTab = 'ledger'; this.showWelcome = false;
-                this.$nextTick(() => { this.openTxnModal(); });
-            },
+            actionQuickTxn() { this.currentYear = REAL_YEAR; this.currentMonth = REAL_MONTH; this.activeTab = 'ledger'; this.showWelcome = false; this.$nextTick(() => { this.openTxnModal(); }); },
 
             formatNumber(num) { return (Number(num) || 0).toLocaleString('en-US'); },
             formatDateTimeDisplay(dt) { return dt ? dt.replace('T', ' ') : ''; },
@@ -970,6 +943,9 @@
                 if (this.currentYear === REAL_YEAR && this.currentMonth === REAL_MONTH) {
                     this.historicalSnapshots[`${REAL_YEAR}_${REAL_MONTH}`] = { ledgerIncomes: JSON.parse(JSON.stringify(this.ledgerIncomes)), ledgerOtherExpenses: JSON.parse(JSON.stringify(this.ledgerOtherExpenses)), ledgerCardBills: JSON.parse(JSON.stringify(this.ledgerCardBills)), ledgerLoans: JSON.parse(JSON.stringify(this.ledgerLoans)) };
                 }
+                // 修復：切換月份時即時重新產生卡片與貸款的 Schedule 表，確保依據當前選定的年月顯示
+                this.cards.forEach(card => { (card.installments||[]).forEach(inst => { this.generateCardSchedule(inst); }); });
+                this.loans.forEach(loan => { this.generateLoanSchedule(loan); });
             },
             
             getPaymentMethodName(pm) { if (pm === 'cash') return '現金'; if (pm === 'transfer') return '轉帳'; if (pm && pm.startsWith('card_')) { let c = this.cards.find(x => x.id === pm.replace('card_','')); return c ? `刷卡 (${c.name})` : '刷卡'; } return ''; },
@@ -1007,8 +983,11 @@
                 this.incomes.forEach(inc => {
                     let key = this.getDraftKey(inc); let recKey = `income_${inc.id}_${this.currentYear}_${this.currentMonth}`;
                     if (!this.incomeDrafts[key]) {
-                        if (this.records[recKey] && this.records[recKey].breakdown) { this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown)); } 
-                        else { this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false }; }
+                        if (this.records[recKey] && this.records[recKey].breakdown) {
+                            this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown));
+                        } else { 
+                            this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false }; 
+                        }
                     }
                 });
             },
@@ -1075,6 +1054,7 @@
             },
 
             // --- Settings CRUD & Override Engine ---
+            calculateIncomeTotal(inc) { return inc.baseSalary || 0; },
             addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
             addFixedExpense() { this.fixedExpenses.push({ id: 'fexp_'+Date.now(), name: '', amount: '', color: '#f97316' }); this.$nextTick(() => { this.initSortable(); }); },
@@ -1104,6 +1084,7 @@
                     } else { prin = Math.round((bal*mRate*Math.pow(1+mRate,n-i+1))/(Math.pow(1+mRate,n-i+1)-1)) - int; }
                     if (prin > bal || i===n) prin = bal; 
 
+                    // 不再受限於 REAL_YEAR/MONTH 鎖死，這是在預覽明細表
                     if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
                     
                     bal -= prin; 
@@ -1157,6 +1138,7 @@
                     if (prin > bal || i === n) prin = bal;
 
                     let oldRow = oldSch.find(s => s.period === i); let isEdited = false;
+                    // 不再受限於 REAL_YEAR/MONTH 鎖死，預覽即時更新
                     if (oldRow && oldRow.isEdited) { prin = oldRow.principal; int = oldRow.interest; isEdited = true; }
 
                     let match = early.find(e => e.period === i); let eAmt = 0; let pen = 0; let recalcType = 'reduce_term';
@@ -1204,13 +1186,12 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v25', JSON.stringify({ showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v26', JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v25') || localStorage.getItem('cashflow_v24');
+                let saved = localStorage.getItem('cashflow_v26') || localStorage.getItem('cashflow_v25');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
-                        if(d.showWelcome !== undefined) this.showWelcome = d.showWelcome;
                         if(d.incomes) this.incomes = d.incomes; if(d.adhocIncomes) this.adhocIncomes = d.adhocIncomes; if(d.fixedExpenses) this.fixedExpenses = d.fixedExpenses; if(d.adhocExpenses) this.adhocExpenses = d.adhocExpenses;
                         if(d.cards) this.cards = d.cards; if(d.loans) this.loans = d.loans; if(d.records) this.records = d.records; if(d.transactions) this.transactions = d.transactions;
                         if(d.historicalSnapshots) this.historicalSnapshots = d.historicalSnapshots;
@@ -1218,16 +1199,16 @@
                 }
             },
             async shareFileObj(c, n, m) { try { const f = new File([c], n, { type: m }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: n }); } else { const u = URL.createObjectURL(f); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); } this.dataModal.show = false; } catch (err) {} },
-            shareBackupFile() { this.shareFileObj(JSON.stringify({ showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
+            shareBackupFile() { this.shareFileObj(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
             shareExcelFile() {
                 let csv = '\uFEFFCashFlow 報表\n\n帳單,預估金額,實際金額\n';
                 this.ledgerOtherExpenses.forEach(e => csv += `[支出] ${e.name},${e.expectedAmount},${e.actualAmount}\n`);
                 this.ledgerCardBills.forEach(b => csv += `[卡費] ${b.name},${b.expectedAmount},${b.actualAmount}\n`);
                 this.shareFileObj(csv, `CashFlow_${this.currentYear}_${this.currentMonth}.csv`, 'text/csv');
             },
-            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
-            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.showWelcome = d.showWelcome; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 還原成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 格式錯誤。'); } } },
-            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.showWelcome = d.showWelcome; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 匯入成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
+            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
+            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 還原成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 格式錯誤。'); } } },
+            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 匯入成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
             executePDF() { this.pdfModal.show = false; this.activeTab = 'ledger'; setTimeout(() => { window.print(); }, 300); }
         }
     }).mount('#app');
