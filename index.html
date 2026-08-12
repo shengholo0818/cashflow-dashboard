@@ -65,7 +65,6 @@
         </div>
         <h2 class="text-3xl font-bold mb-3 tracking-wider">歡迎使用 CashFlow</h2>
         <p class="text-blue-100 mb-10 text-sm text-center font-medium leading-relaxed">這將是您的專屬理財儀表板。<br>為了給您更好的體驗，請問該怎麼稱呼您？</p>
-        
         <div class="w-full max-w-xs space-y-6">
             <div class="relative">
                 <i class="fa-solid fa-user absolute left-4 top-4 text-gray-400 text-lg"></i>
@@ -115,7 +114,6 @@
                 </div>
             </button>
         </div>
-
         <button @click="showWelcome = false" class="mt-10 text-blue-200 text-sm font-medium border-b border-blue-200 pb-0.5 opacity-80 hover:opacity-100 transition outline-none">
             直接進入儀表板首頁
         </button>
@@ -137,8 +135,8 @@
         <div v-if="pdfConfig.showSettings"><div class="pdf-title" style="margin-top: 40px;">系統設定與參數備查</div><div v-if="incomes.length > 0"><div class="pdf-subtitle">常態薪資設定</div><table><tr><th>薪資名稱</th><th>固定本薪</th><th>預估總額</th></tr><tr v-for="inc in incomes" :key="'ps_inc_'+inc.id"><td>{{ inc.name }}</td><td>$ {{ formatNumber(inc.baseSalary) }}</td><td>$ {{ formatNumber(calculateIncomeTotal(inc)) }}</td></tr></table></div><div v-if="loans.length > 0"><div class="pdf-subtitle">貸款參數設定</div><table><tr><th>貸款名稱</th><th>總額</th><th>利率(%)</th><th>期數</th><th>還款方式</th></tr><tr v-for="l in loans" :key="'ps_loan_'+l.id"><td>{{ l.name }}</td><td>$ {{ formatNumber(l.totalAmount) }}</td><td>{{ l.annualRate }}%</td><td>{{ l.periods }}期</td><td>{{ l.repaymentMethod === 'equal_installment' ? '本息平均' : '本金平均' }}</td></tr></table></div></div>
     </div>
 
-    <!-- ==================== 手機 UI 介面 ==================== -->
-    <div class="no-print flex-grow pb-10">
+    <!-- ==================== 手機 UI 介面 (不列印) ==================== -->
+    <div class="no-print flex-grow pb-10 flex flex-col">
         
         <div class="bg-white p-4 shadow-sm flex justify-between items-center z-40 relative">
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -165,7 +163,7 @@
             
             <div class="flex justify-between items-center bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <button @click="changeMonth(-1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-r border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-left"></i></button>
-                <button @click="monthPicker.show = true" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
+                <button @click="openMonthPicker" class="flex-1 h-10 font-bold text-lg text-blue-700 hover:bg-blue-50 transition flex items-center justify-center gap-2 outline-none">
                     {{ currentYear }} 年 {{ currentMonth }} 月 <i class="fa-solid fa-caret-down text-sm text-blue-400"></i>
                 </button>
                 <button @click="changeMonth(1)" class="w-12 h-10 hover:bg-gray-100 flex items-center justify-center text-gray-500 border-l border-gray-200 transition outline-none"><i class="fa-solid fa-chevron-right"></i></button>
@@ -199,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- 1. 收入區塊 -->
+            <!-- Ledger: 收入區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-green-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">1. 本月收入</h2>
@@ -236,8 +234,8 @@
                             </div>
                             <div class="text-[11px]">
                                 <div class="flex justify-between text-gray-500"><span>本薪</span><span>$ {{ formatNumber(inc.baseSalary) }}</span></div>
-                                <div v-for="a in (inc.fixedAllowances||[])" :key="a.name" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
-                                <div v-for="d in (inc.fixedDeductions||[])" :key="d.name" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
+                                <div v-for="a in (inc.fixedAllowances||[])" :key="'fa'+a.name" class="flex justify-between text-blue-600"><span>[固] {{ a.name }}</span><span>+ $ {{ formatNumber(a.type==='daily'?a.amount*incomeDrafts[getDraftKey(inc)].workingDays:a.amount) }}</span></div>
+                                <div v-for="d in (inc.fixedDeductions||[])" :key="'fd'+d.name" class="flex justify-between text-red-500"><span>[固] {{ d.name }}</span><span>- $ {{ formatNumber(d.type==='daily'?d.amount*incomeDrafts[getDraftKey(inc)].workingDays:d.amount) }}</span></div>
                             </div>
                             <div class="border-t pt-2">
                                 <div class="text-[11px] font-bold text-blue-600 mb-1 flex justify-between">本月臨時加項 <button @click="addTempIncomeItem(inc, 'tempAllowances')" class="bg-blue-100 px-1 rounded outline-none">+新增</button></div>
@@ -256,7 +254,7 @@
                 </div>
             </div>
 
-            <!-- 2. 支出區塊 -->
+            <!-- Ledger: 支出區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-orange-400">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">2. 生活支出與繳費</h2>
@@ -286,7 +284,7 @@
                 </div>
             </div>
 
-            <!-- 3. 卡費區塊 -->
+            <!-- Ledger: 卡費區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-purple-500">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">3. 信用卡帳單</h2>
@@ -339,7 +337,7 @@
                 </div>
             </div>
 
-            <!-- 4. 貸款區塊 -->
+            <!-- Ledger: 貸款區塊 -->
             <div class="bg-white rounded-xl shadow-sm p-4 border-t-4 border-blue-500 mt-4">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-bold text-gray-700">4. 本月貸款攤還</h2>
@@ -473,12 +471,11 @@
                                 </div>
                             </div>
                             <div class="text-[10px] bg-purple-50 p-1 rounded mb-2 border border-purple-100">
-                                🌟 <b>自動化起算：</b>系統會根據你的設定，自動產生每個月份的分期明細表。
                                 起算: <input type="number" v-model.number="item.startYear" @change="generateCardSchedule(item)" class="w-10 border rounded text-center outline-none">年 <input type="number" v-model.number="item.startMonth" @change="generateCardSchedule(item)" class="w-6 border rounded text-center outline-none">月
                             </div>
                             
                             <button @click="item.showSchedule = !item.showSchedule" class="w-full text-center text-[10px] py-1 text-blue-600 border border-blue-100 rounded bg-blue-50 outline-none">
-                                {{ item.showSchedule ? '隱藏明細 ▲' : '預覽與自訂細部本金/利息 ▼' }}
+                                {{ item.showSchedule ? '隱藏明細 ▲' : '自訂細部本金/利息 ▼' }}
                             </button>
                             <div v-if="item.showSchedule" class="mt-1 border rounded overflow-hidden">
                                 <div class="max-h-48 overflow-y-auto bg-white">
@@ -574,7 +571,7 @@
                         </div>
 
                         <button @click="loan.showSchedule = !loan.showSchedule" class="w-full text-center text-[10px] py-1.5 text-blue-600 bg-white border border-blue-200 rounded font-bold outline-none">
-                            {{ loan.showSchedule ? '隱藏攤還明細表 ▲' : '預覽與自訂細部本金/利息 ▼' }}
+                            {{ loan.showSchedule ? '隱藏攤還明細表 ▲' : '自訂細部本金/利息 ▼' }}
                         </button>
                         <div v-if="loan.showSchedule" class="mt-2 border rounded overflow-hidden">
                             <div class="max-h-60 overflow-y-auto bg-white">
@@ -651,6 +648,21 @@
         </div>
     </div>
 
+    <div v-if="monthPicker.show" class="fixed inset-0 bg-black bg-opacity-60 z-[80] flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-xl w-full max-w-[280px] p-5">
+            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700">快速跳轉年月</h3><button @click="monthPicker.show = false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+            <div class="flex items-center gap-2 mb-4">
+                <button @click="monthPicker.year--" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-minus"></i></button>
+                <div class="flex-1 text-center font-bold text-lg">{{ monthPicker.year }} 年</div>
+                <button @click="monthPicker.year++" class="p-2 bg-gray-100 rounded hover:bg-gray-200 outline-none"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+                <button v-for="m in 12" :key="'m'+m" @click="selectMonth(m)" class="py-2 rounded font-bold transition outline-none" :class="(monthPicker.year===currentYear && m===currentMonth) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">{{ m }}月</button>
+            </div>
+            <button @click="goToCurrentMonth" class="w-full mt-4 py-2 bg-blue-50 text-blue-600 font-bold rounded outline-none">回到本月 (解除歷史鎖定)</button>
+        </div>
+    </div>
+
     <div v-if="dataModal.show" class="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4 no-print">
         <div class="bg-white rounded-xl w-full max-w-sm p-5">
             <h3 class="text-lg font-bold mb-4 flex justify-between items-center text-gray-800">
@@ -689,9 +701,6 @@
                     <option value="cash">現金/轉帳 (扣戶頭)</option>
                     <optgroup label="刷卡代繳 (併入卡費)"><option v-for="c in cards" :key="c.id" :value="'card_'+c.id">{{ c.name }}</option></optgroup>
                 </select>
-                <p v-if="modal.paymentMethod.startsWith('card_')" class="text-[10px] text-purple-600 mt-2 font-bold bg-purple-50 p-1.5 rounded">
-                    💡 系統將自動把這筆費用加到所選的信用卡帳單中。
-                </p>
             </div>
             <div v-if="modal.type === 'card'" class="mb-4 border border-purple-200 rounded p-2 bg-purple-50 text-xs">
                 <div class="flex justify-between items-center font-bold text-purple-700 mb-1">新增刷卡回饋折抵</div>
@@ -735,20 +744,9 @@
         <div class="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-sm p-5">
             <div class="flex justify-between mb-3 border-b pb-2"><h3 class="text-lg font-bold text-purple-700">記一筆刷卡</h3><button @click="txnModal.show=false" class="text-gray-400 outline-none"><i class="fa-solid fa-xmark text-xl"></i></button></div>
             <div class="space-y-3">
-                <select v-model="txnModal.cardId" @change="autoCalculateBillingMonth" class="w-full border rounded px-3 py-2 text-sm font-bold bg-purple-50 text-purple-700 outline-none"><option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option></select>
+                <select v-model="txnModal.cardId" class="w-full border rounded px-3 py-2 text-sm font-bold bg-purple-50 text-purple-700 outline-none"><option v-for="c in cards" :key="c.id" :value="c.id">{{ c.name }}</option></select>
                 <div class="flex gap-2"><input type="text" v-model="txnModal.name" placeholder="買什麼？" class="w-2/3 border-2 rounded px-3 py-1.5 text-sm outline-none focus:border-purple-400"><input type="number" v-model.number="txnModal.amount" placeholder="$" class="w-1/3 border-2 rounded px-3 py-1.5 text-sm font-bold text-red-600 outline-none focus:border-purple-400"></div>
-                <div>
-                    <label class="text-[10px] text-gray-500 mb-0.5 block">時間</label>
-                    <input type="datetime-local" v-model="txnModal.datetime" @change="autoCalculateBillingMonth" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none">
-                </div>
-                <!-- 🌟 新增：入帳月份自動判斷與手動修改區 -->
-                <div class="bg-purple-50 p-2 rounded border border-purple-100 mt-2">
-                    <label class="text-[10px] font-bold text-purple-700 block mb-1">入帳月份 (系統自動判斷結帳日，可手動修改)</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" v-model.number="txnModal.targetYear" class="w-16 border rounded px-2 py-1 text-sm text-center outline-none bg-white font-bold"> <span class="text-xs">年</span>
-                        <input type="number" v-model.number="txnModal.targetMonth" class="w-12 border rounded px-2 py-1 text-sm text-center outline-none bg-white font-bold"> <span class="text-xs">月</span>
-                    </div>
-                </div>
+                <div><label class="text-[10px] text-gray-500 mb-0.5 block">時間</label><input type="datetime-local" v-model="txnModal.datetime" step="1" class="w-full border-2 rounded px-3 py-1.5 text-sm bg-white outline-none"></div>
             </div>
             <button @click="saveTransaction" class="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition outline-none">加入卡費</button>
         </div>
@@ -775,7 +773,7 @@
                 
                 incomes: [{ id: 'inc_1', name: '友達工業薪資', baseSalary: 42000, fixedAllowances: [], fixedDeductions: [], showDetails: false }],
                 adhocIncomes: [], 
-                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }],
+                fixedExpenses: [{ id: 'fexp_rent', name: '房租', amount: 8500, color: '#f97316' }, { id: 'fexp_tel', name: '中華電信費', amount: 999, color: '#f97316' }],
                 cards: [{ id: 'card_cube', name: '國泰 CUBE', color: '#a855f7', statementDate: 1, dueDate: 15, forceShow: true, installments: [] }],
                 loans: [{ id: 'loan_line', name: '連線商業銀行 信貸', color: '#3b82f6', totalAmount: 100000, annualRate: 15.97, periods: 60, repaymentMethod: 'equal_installment', gracePeriod: 0, startYear: 2026, startMonth: 2, dueDate: 23, remainderOption: 'last', earlyRepayments: [], schedule: [], showSchedule: false }],
                 
@@ -785,8 +783,7 @@
                 dataModal: { show: false }, 
                 modal: { show: false, type: '', data: null, inputAmount: 0, paymentMethod: 'cash', showReward: false, rewardAmount: 0, rewardYear: 0, rewardMonth: 0 },
                 adhocModal: { show: false, name: '', amount: '' }, adhocIncModal: { show: false, name: '', amount: '' },
-                // 🌟 新增 targetYear 與 targetMonth
-                txnModal: { show: false, cardId: '', name: '', amount: '', datetime: '', targetYear: now.getFullYear(), targetMonth: now.getMonth() + 1 },
+                txnModal: { show: false, cardId: '', name: '', amount: '', datetime: '' },
                 monthPicker: { show: false, year: now.getFullYear() },
                 pdfModal: { show: false }, pdfConfig: { showSummary: true, showIncome: true, showExpense: true, showCards: true, showLoans: true, showSettings: false }
             };
@@ -882,8 +879,14 @@
         },
         mounted() {
             this.loadData();
-            if (!this.userName || this.userName.trim() === '') { this.showNameSetup = true; this.showWelcome = false; } 
-            else { this.showWelcome = true; }
+            
+            if (!this.userName || this.userName.trim() === '') { 
+                this.showNameSetup = true; 
+                this.showWelcome = false; 
+            } else { 
+                this.showNameSetup = false;
+                this.showWelcome = true; 
+            }
 
             this.syncIncomeDrafts();
             this.cards.forEach(card => { (card.installments||[]).forEach(inst => { if(!inst.schedule || inst.schedule.length===0) this.generateCardSchedule(inst); }); });
@@ -913,8 +916,14 @@
                 });
             },
 
+            openMonthPicker() { this.monthPicker.year = this.currentYear; this.monthPicker.show = true; },
             changeMonth(delta) { let d = new Date(this.currentYear, this.currentMonth - 1 + delta, 1); this.currentYear = d.getFullYear(); this.currentMonth = d.getMonth() + 1; },
-            selectMonth(m) { this.currentYear = this.monthPicker.year; this.currentMonth = m; this.monthPicker.show = false; },
+            selectMonth(m) { 
+                let ty = this.monthPicker.year;
+                this.monthPicker.show = false; 
+                if (this.currentYear !== ty) this.currentYear = ty;
+                if (this.currentMonth !== m) this.currentMonth = m;
+            },
             goToCurrentMonth() { this.currentYear = REAL_YEAR; this.currentMonth = REAL_MONTH; this.monthPicker.show = false; },
             handleMonthChange() {
                 this.syncIncomeDrafts();
@@ -960,8 +969,11 @@
                 this.incomes.forEach(inc => {
                     let key = this.getDraftKey(inc); let recKey = `income_${inc.id}_${this.currentYear}_${this.currentMonth}`;
                     if (!this.incomeDrafts[key]) {
-                        if (this.records[recKey] && this.records[recKey].breakdown) { this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown)); } 
-                        else { this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false }; }
+                        if (this.records[recKey] && this.records[recKey].breakdown) {
+                            this.incomeDrafts[key] = JSON.parse(JSON.stringify(this.records[recKey].breakdown));
+                        } else { 
+                            this.incomeDrafts[key] = { workingDays: 22, tempAllowances: [], tempDeductions: [], showDetails: false }; 
+                        }
                     }
                 });
             },
@@ -976,7 +988,12 @@
             },
             isIncomeReceived(inc) { return !!this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`] || !!this.records[`income_adhoc_${inc.sourceId}`]; },
             getIncomeActual(inc) { return (this.records[`income_${inc.id}_${this.currentYear}_${this.currentMonth}`]?.amount || this.records[`income_adhoc_${inc.sourceId}`]?.amount || 0); },
-            addTempIncomeItem(inc, field) { let draft = this.incomeDrafts[this.getDraftKey(inc)]; if (!draft[field]) draft[field] = []; draft[field].push({ name:'', type:'fixed', amount:'' }); },
+            
+            addTempIncomeItem(inc, field) { 
+                let key = this.getDraftKey(inc);
+                if (!this.incomeDrafts[key][field]) this.incomeDrafts[key][field] = [];
+                this.incomeDrafts[key][field].push({ name:'', type:'fixed', amount:'' }); 
+            },
 
             // --- Modals & Records ---
             openRecordModal(type, data) {
@@ -1015,58 +1032,14 @@
                 this.adhocModal.show = false; this.adhocModal.name = ''; this.adhocModal.amount = '';
             },
             getLocalDatetimeStr() { const n = new Date(); n.setMinutes(n.getMinutes() - n.getTimezoneOffset()); return n.toISOString().slice(0, 19); },
-            
-            // 🌟 核心：自動判斷刷卡月份引擎
-            autoCalculateBillingMonth() {
-                if (!this.txnModal.cardId || !this.txnModal.datetime) return;
-                
-                let card = this.cards.find(c => c.id === this.txnModal.cardId);
-                if (!card) return;
-                
-                let txDate = new Date(this.txnModal.datetime);
-                let txYear = txDate.getFullYear();
-                let txMonth = txDate.getMonth() + 1; // 1-12
-                let txDay = txDate.getDate();
-                let stmtDate = Number(card.statementDate) || 1; 
-
-                let targetYear = txYear;
-                let targetMonth = txMonth;
-
-                // 如果消費日「大於」結帳日，代表本月帳單已結，就算在「下個月」
-                if (txDay > stmtDate) {
-                    targetMonth++;
-                    if (targetMonth > 12) {
-                        targetMonth = 1;
-                        targetYear++;
-                    }
-                }
-                
-                this.txnModal.targetYear = targetYear;
-                this.txnModal.targetMonth = targetMonth;
-            },
-            openTxnModal() { 
-                this.txnModal = { show: true, cardId: '', name: '', amount: '', datetime: this.getLocalDatetimeStr(), targetYear: this.currentYear, targetMonth: this.currentMonth }; 
-                if(this.cards.length>0) { 
-                    this.txnModal.cardId = this.cards[0].id; 
-                    this.autoCalculateBillingMonth(); 
-                } 
-            },
+            openTxnModal() { this.txnModal = { show: true, cardId: '', name: '', amount: '', datetime: this.getLocalDatetimeStr() }; if(this.cards.length>0) this.txnModal.cardId = this.cards[0].id; },
             saveTransaction() {
                 if(!this.txnModal.cardId || !this.txnModal.name || !this.txnModal.amount) return alert("請填寫完整");
-                this.transactions.push({ 
-                    id: 'txn_'+Date.now(), 
-                    cardId: this.txnModal.cardId, 
-                    year: this.txnModal.targetYear,   // 使用自動判斷/手動修改後的年份
-                    month: this.txnModal.targetMonth, // 使用自動判斷/手動修改後的月份
-                    name: this.txnModal.name, 
-                    amount: Number(this.txnModal.amount), 
-                    date: new Date(this.txnModal.datetime).toLocaleDateString(), 
-                    datetime: this.txnModal.datetime 
-                });
+                this.transactions.push({ id: 'txn_'+Date.now(), cardId: this.txnModal.cardId, year: this.currentYear, month: this.currentMonth, name: this.txnModal.name, amount: Number(this.txnModal.amount), date: new Date().toLocaleDateString(), datetime: this.txnModal.datetime });
                 this.txnModal.show = false;
             },
 
-            // --- Settings CRUD ---
+            // --- Settings CRUD & Override Engine ---
             calculateIncomeTotal(inc) { return inc.baseSalary || 0; },
             addIncome() { this.incomes.push({ id: 'inc_'+Date.now(), name: '', baseSalary: 0, fixedAllowances: [], fixedDeductions: [], showDetails: true }); this.syncIncomeDrafts(); this.$nextTick(() => { this.initSortable(); }); },
             addIncomeSettingItem(inc, field) { if(!inc[field]) inc[field]=[]; inc[field].push({ name:'', type:'fixed', amount:'' }); },
@@ -1197,14 +1170,13 @@
             },
 
             // --- 系統匯出入與 PDF ---
-            saveData() { localStorage.setItem('cashflow_v28', JSON.stringify({ userName: this.userName, showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
+            saveData() { localStorage.setItem('cashflow_v29', JSON.stringify({ userName: this.userName, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })); },
             loadData() {
-                let saved = localStorage.getItem('cashflow_v28') || localStorage.getItem('cashflow_v27');
+                let saved = localStorage.getItem('cashflow_v29') || localStorage.getItem('cashflow_v28') || localStorage.getItem('cashflow_v27');
                 if (saved) {
                     try {
                         const d = JSON.parse(saved);
                         if(d.userName) this.userName = d.userName;
-                        if(d.showWelcome !== undefined) this.showWelcome = d.showWelcome;
                         if(d.incomes) this.incomes = d.incomes; if(d.adhocIncomes) this.adhocIncomes = d.adhocIncomes; if(d.fixedExpenses) this.fixedExpenses = d.fixedExpenses; if(d.adhocExpenses) this.adhocExpenses = d.adhocExpenses;
                         if(d.cards) this.cards = d.cards; if(d.loans) this.loans = d.loans; if(d.records) this.records = d.records; if(d.transactions) this.transactions = d.transactions;
                         if(d.historicalSnapshots) this.historicalSnapshots = d.historicalSnapshots;
@@ -1212,16 +1184,16 @@
                 }
             },
             async shareFileObj(c, n, m) { try { const f = new File([c], n, { type: m }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: n }); } else { const u = URL.createObjectURL(f); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); } this.dataModal.show = false; } catch (err) {} },
-            shareBackupFile() { this.shareFileObj(JSON.stringify({ userName: this.userName, showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
+            shareBackupFile() { this.shareFileObj(JSON.stringify({ userName: this.userName, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots }), 'CashFlow_Backup.json', 'application/json'); },
             shareExcelFile() {
                 let csv = '\uFEFFCashFlow 報表\n\n帳單,預估金額,實際金額\n';
                 this.ledgerOtherExpenses.forEach(e => csv += `[支出] ${e.name},${e.expectedAmount},${e.actualAmount}\n`);
                 this.ledgerCardBills.forEach(b => csv += `[卡費] ${b.name},${b.expectedAmount},${b.actualAmount}\n`);
                 this.shareFileObj(csv, `CashFlow_${this.currentYear}_${this.currentMonth}.csv`, 'text/csv');
             },
-            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ userName: this.userName, showWelcome: this.showWelcome, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
-            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.userName = d.userName||''; this.showWelcome = d.showWelcome; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 還原成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 格式錯誤。'); } } },
-            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.userName = d.userName||''; this.showWelcome = d.showWelcome; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 匯入成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
+            copyBackupText() { navigator.clipboard.writeText(JSON.stringify({ userName: this.userName, incomes: this.incomes, adhocIncomes: this.adhocIncomes, fixedExpenses: this.fixedExpenses, adhocExpenses: this.adhocExpenses, cards: this.cards, loans: this.loans, records: this.records, transactions: this.transactions, historicalSnapshots: this.historicalSnapshots })).then(() => { alert('✅ 代碼已複製'); this.dataModal.show = false; }); },
+            pasteImport() { const p = prompt("貼上代碼："); if (p) { try { const d = JSON.parse(p); this.userName = d.userName||''; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 還原成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 格式錯誤。'); } } },
+            importData(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); this.userName = d.userName||''; this.incomes = d.incomes||[]; this.adhocIncomes = d.adhocIncomes||[]; this.fixedExpenses = d.fixedExpenses||[]; this.adhocExpenses = d.adhocExpenses||[]; this.cards = d.cards||[]; this.loans = d.loans||[]; this.records = d.records||{}; this.transactions = d.transactions||[]; this.historicalSnapshots = d.historicalSnapshots||{}; alert('🎉 匯入成功！'); this.dataModal.show = false; this.saveData(); location.reload(); } catch (err) { alert('❌ 錯誤！'); } }; r.readAsText(f); e.target.value = ''; },
             executePDF() { this.pdfModal.show = false; this.activeTab = 'ledger'; setTimeout(() => { window.print(); }, 300); }
         }
     }).mount('#app');
